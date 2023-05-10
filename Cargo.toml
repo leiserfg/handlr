@@ -4,6 +4,9 @@ members = [
   "handlr-regex",
   "xtask"
 ]
+default-members = [
+  "handlr-regex"
+]
 
 [profile.release]
 opt-level=3
