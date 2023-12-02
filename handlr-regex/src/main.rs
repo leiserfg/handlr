@@ -8,6 +8,7 @@ use handlr_regex::{
     utils,
 };
 use once_cell::sync::Lazy;
+use std::io::IsTerminal;
 
 fn main() -> Result<()> {
     // create config if it doesn't exist
@@ -57,7 +58,7 @@ fn main() -> Result<()> {
         Ok(())
     }();
 
-    match (res, atty::is(atty::Stream::Stdout)) {
+    match (res, std::io::stdout().is_terminal()) {
         (Err(e), _) if matches!(*e.kind, ErrorKind::Cancelled) => {
             std::process::exit(1);
         }

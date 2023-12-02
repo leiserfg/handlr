@@ -460,7 +460,6 @@ version = "0.8.5"
 dependencies = [
  "aho-corasick 0.7.20",
  "ascii_table",
- "atty",
  "clap",
  "confy",
  "freedesktop_entry_parser",

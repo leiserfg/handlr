@@ -5,6 +5,7 @@ use std::{
     collections::HashMap,
     convert::TryFrom,
     ffi::OsString,
+    io::IsTerminal,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
@@ -50,7 +51,7 @@ impl DesktopEntry {
             cmd
         };
 
-        if self.terminal && atty::is(atty::Stream::Stdout) {
+        if self.terminal && std::io::stdout().is_terminal() {
             cmd.spawn()?.wait()?;
         } else {
             cmd.stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
@@ -93,7 +94,7 @@ impl DesktopEntry {
 
         // If the entry expects a terminal (emulator), but this process is not running in one, we
         // launch a new one.
-        if self.terminal && !atty::is(atty::Stream::Stdout) {
+        if self.terminal && !std::io::stdout().is_terminal() {
             exec = shlex::split(&Config::terminal()?)
                 .unwrap()
                 .into_iter()
