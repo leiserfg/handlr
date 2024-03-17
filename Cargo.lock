@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "handlr-regex"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "aho-corasick 0.7.20",
  "clap",

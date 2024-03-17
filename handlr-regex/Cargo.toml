@@ -1,11 +1,12 @@
 [package]
 name = "handlr-regex"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["Duncan Russell <Duncan@anomalocaris.xyz>", "Gregory <gregory.mkv@gmail.com>"]
 edition = "2018"
 license = "MIT"
 description = "Fork of handlr with regex support"
 repository = "https://github.com/Anomalocaridid/handlr-regex"
+readme = "../README.md"
 
 [dependencies]
 pest = "2.1.3"
