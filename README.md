@@ -138,10 +138,12 @@ Starting with v0.10.0, commands with table output (i.e. `handlr list` and `handl
 sudo pacman -S handlr-regex
 ```
 
-Optionally you can also install `xdg-utils-handlr` from the AUR to replace `xdg-open`:
+Optionally, you can also use `handlr-regex` as a replacement for `xdg-open` by shadowing it with a script in `$HOME/.local/bin/` (or any other user-scoped `$PATH` directory). Use the following script as an example:
 
 ```sh
-paru -S xdg-utils-handlr
+#!/bin/sh
+
+handlr open "$@"
 ```
 
 ### Rust/Cargo
