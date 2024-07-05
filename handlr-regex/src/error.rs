@@ -1,3 +1,4 @@
+/// Custom error type
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct Error {
@@ -15,10 +16,9 @@ where
     }
 }
 
+/// Custom error messages
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
-    #[error(transparent)]
-    ParseApps(#[from] pest::error::Error<crate::apps::MimeappsRule>),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
@@ -47,6 +47,17 @@ pub enum ErrorKind {
     BadPath(String),
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
+    #[error(transparent)]
+    SerdeIniDe(#[from] serde_ini::de::Error),
+    #[error(transparent)]
+    SerdeIniSer(#[from] serde_ini::ser::Error),
+    #[error("Could not split exec command '{0}' in desktop file '{1}' into shell words")]
+    BadExec(String, String),
+    #[error("Could not split command '{0}' into shell words")]
+    BadCmd(String),
+    #[cfg(test)]
+    #[error(transparent)]
+    BadUrl(#[from] url::ParseError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

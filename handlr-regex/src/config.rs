@@ -1,22 +1,24 @@
 use crate::{
-    apps::{ConfigHandler, SystemApps},
-    common::Handler,
-    Error, ErrorKind, Result,
+    apps::SystemApps, common::DesktopHandler, Error, ErrorKind, Handleable,
+    MimeApps, RegexApps, RegexHandler, Result, UserPath,
 };
 use mime::Mime;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-pub static CONFIG: Lazy<Config> = Lazy::new(Config::load);
-
+/// The config file
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    /// Whether to enable the selector when multiple handlers are set
     pub enable_selector: bool,
+    /// The selector command to run
     pub selector: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub handlers: Vec<ConfigHandler>,
+    /// Regex handlers
+    // NOTE: Serializing is only necessary for generating a default config file
+    #[serde(skip_serializing)]
+    pub handlers: RegexApps,
+    /// Extra arguments to pass to terminal application
     term_exec_args: Option<String>,
 }
 
@@ -25,7 +27,7 @@ impl Default for Config {
         Config {
             enable_selector: false,
             selector: "rofi -dmenu -i -p 'Open With: '".into(),
-            handlers: Vec::new(),
+            handlers: Default::default(),
             // Required for many xterm-compatible terminal emulators
             // Unfortunately, messes up emulators that don't accept it
             term_exec_args: Some("-e".into()),
@@ -34,9 +36,22 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn terminal() -> Result<String> {
-        let terminal_entry = crate::apps::APPS
-            .get_handler(&Mime::from_str("x-scheme-handler/terminal").unwrap())
+    /// Get the handler associated with a given mime from the config file's regex handlers
+    pub fn get_regex_handler(&self, path: &UserPath) -> Result<RegexHandler> {
+        self.handlers.get_handler(path)
+    }
+
+    pub fn terminal(
+        &self,
+        mime_apps: &mut MimeApps,
+        system_apps: &SystemApps,
+    ) -> Result<String> {
+        let terminal_entry = mime_apps
+            .get_handler(
+                self,
+                system_apps,
+                &Mime::from_str("x-scheme-handler/terminal")?,
+            )
             .ok()
             .and_then(|h| h.get_entry().ok());
 
@@ -45,7 +60,7 @@ impl Config {
                 let entry = SystemApps::get_entries()
                     .ok()?
                     .find(|(_handler, entry)| {
-                        entry.categories.contains_key("TerminalEmulator")
+                        entry.is_terminal_emulator()
                     })?;
 
                 crate::utils::notify(
@@ -56,19 +71,18 @@ impl Config {
                     )
                 ).ok()?;
 
-                let mut apps = (*crate::apps::APPS).clone();
-                apps.set_handler(
-                    Mime::from_str("x-scheme-handler/terminal").unwrap(),
-                    Handler::assume_valid(entry.0),
+                mime_apps.set_handler(
+                    &Mime::from_str("x-scheme-handler/terminal").ok()?,
+                    &DesktopHandler::assume_valid(entry.0),
                 );
-                apps.save().ok()?;
+                mime_apps.save().ok()?;
 
                 Some(entry.1)
             })
             .map(|e| {
-                let mut exec = e.exec;
+                let mut exec = e.exec.to_owned();
 
-                if let Some(opts) = &CONFIG.term_exec_args {
+                if let Some(opts) = &self.term_exec_args {
                     exec.push(' ');
                     exec.push_str(opts)
                 }
@@ -77,8 +91,8 @@ impl Config {
             })
             .ok_or(Error::from(ErrorKind::NoTerminal))
     }
-    pub fn load() -> Self {
-        confy::load("handlr").unwrap()
+    pub fn load() -> Result<Self> {
+        Ok(confy::load("handlr")?)
     }
 
     pub fn select<O: Iterator<Item = String>>(
@@ -92,7 +106,9 @@ impl Config {
         };
 
         let process = {
-            let mut split = shlex::split(&self.selector).unwrap();
+            let mut split = shlex::split(&self.selector).ok_or_else(|| {
+                Error::from(ErrorKind::BadCmd(self.selector.clone()))
+            })?;
             let (cmd, args) = (split.remove(0), split);
             Command::new(cmd)
                 .args(args)
