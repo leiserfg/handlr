@@ -36,6 +36,8 @@ pub trait Handleable {
         mime_apps: &mut MimeApps,
         system_apps: &SystemApps,
         args: Vec<String>,
+        selector: &str,
+        enable_selector: bool,
     ) -> Result<()> {
         self.get_entry()?.exec(
             config,
@@ -43,6 +45,8 @@ pub trait Handleable {
             system_apps,
             ExecMode::Open,
             args,
+            selector,
+            enable_selector,
         )
     }
 }
@@ -98,6 +102,8 @@ impl DesktopHandler {
         mime_apps: &mut MimeApps,
         system_apps: &SystemApps,
         args: Vec<String>,
+        selector: &str,
+        enable_selector: bool,
     ) -> Result<()> {
         self.get_entry()?.exec(
             config,
@@ -105,6 +111,8 @@ impl DesktopHandler {
             system_apps,
             ExecMode::Launch,
             args,
+            selector,
+            enable_selector,
         )
     }
 }
