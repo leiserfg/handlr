@@ -2,7 +2,7 @@
 name = "handlr-regex"
 version = "0.10.1"
 authors = ["Duncan Russell <Duncan@anomalocaris.xyz>", "Gregory <gregory.mkv@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 description = "Fork of handlr with regex support"
 repository = "https://github.com/Anomalocaridid/handlr-regex"

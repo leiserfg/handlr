@@ -1,5 +1,5 @@
 use clap::{CommandFactory, Parser};
-use handlr_regex::Cmd;
+use handlr_regex::cli::Cmd;
 use std::{
     env,
     error::Error,
