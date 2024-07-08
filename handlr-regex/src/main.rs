@@ -1,27 +1,24 @@
 use clap::Parser;
 use handlr_regex::{
-    apps,
+    apps::SystemApps,
     cli::Cmd,
     common::{self, mime_table},
+    config::Config,
     error::{ErrorKind, Result},
-    utils, Config, MimeApps, SystemApps,
+    utils,
 };
 use std::io::IsTerminal;
 
 fn main() -> Result<()> {
-    let config = Config::load().unwrap_or_default();
-    let mut mime_apps = MimeApps::read().unwrap_or_default();
-    let system_apps = SystemApps::populate().unwrap_or_default();
+    let mut config = Config::new().unwrap_or_default();
 
     let res = || -> Result<()> {
         match Cmd::parse() {
             Cmd::Set { mime, handler } => {
-                mime_apps.set_handler(&mime, &handler);
-                mime_apps.save()?;
+                config.set_handler(&mime, &handler)?
             }
             Cmd::Add { mime, handler } => {
-                mime_apps.add_handler(&mime, &handler);
-                mime_apps.save()?;
+                config.add_handler(&mime, &handler)?
             }
             Cmd::Launch {
                 mime,
@@ -30,13 +27,12 @@ fn main() -> Result<()> {
                 enable_selector,
                 disable_selector,
             } => {
-                mime_apps.launch_handler(
-                    &config,
-                    &system_apps,
+                config.launch_handler(
                     &mime,
                     args,
-                    &selector.unwrap_or(config.selector.clone()),
-                    config.use_selector(enable_selector, disable_selector),
+                    selector,
+                    enable_selector,
+                    disable_selector,
                 )?;
             }
             Cmd::Get {
@@ -46,13 +42,12 @@ fn main() -> Result<()> {
                 enable_selector,
                 disable_selector,
             } => {
-                mime_apps.show_handler(
-                    &config,
-                    &system_apps,
+                config.show_handler(
                     &mime,
                     json,
-                    &selector.unwrap_or(config.selector.clone()),
-                    config.use_selector(enable_selector, disable_selector),
+                    selector,
+                    enable_selector,
+                    disable_selector,
                 )?;
             }
             Cmd::Open {
@@ -60,31 +55,30 @@ fn main() -> Result<()> {
                 selector,
                 enable_selector,
                 disable_selector,
-            } => mime_apps.open_paths(
-                &config,
-                &system_apps,
+            } => config.open_paths(
                 &paths,
-                &selector.unwrap_or(config.selector.clone()),
-                config.use_selector(enable_selector, disable_selector),
+                selector,
+                enable_selector,
+                disable_selector,
             )?,
             Cmd::Mime { paths, json } => {
                 mime_table(&paths, json)?;
             }
             Cmd::List { all, json } => {
-                mime_apps.print(&system_apps, all, json)?;
+                config.print(all, json)?;
             }
             Cmd::Unset { mime } => {
-                mime_apps.unset_handler(&mime)?;
+                config.unset_handler(&mime)?;
             }
             Cmd::Remove { mime, handler } => {
-                mime_apps.remove_handler(&mime, &handler)?;
+                config.remove_handler(&mime, &handler)?;
             }
             Cmd::Autocomplete {
                 desktop_files,
                 mimes,
             } => {
                 if desktop_files {
-                    apps::SystemApps::list_handlers()?;
+                    SystemApps::list_handlers()?;
                 } else if mimes {
                     common::db_autocomplete()?;
                 }

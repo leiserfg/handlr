@@ -1,6 +1,7 @@
 use crate::{
-    common::{DesktopEntry, ExecMode},
-    Config, Error, ErrorKind, MimeApps, Result, SystemApps, UserPath,
+    common::{DesktopEntry, ExecMode, UserPath},
+    config::Config,
+    error::{Error, ErrorKind, Result},
 };
 use derive_more::Deref;
 use enum_dispatch::enum_dispatch;
@@ -32,17 +33,13 @@ pub trait Handleable {
     /// Open the given paths with the handler
     fn open(
         &self,
-        config: &Config,
-        mime_apps: &mut MimeApps,
-        system_apps: &SystemApps,
+        config: &mut Config,
         args: Vec<String>,
         selector: &str,
         enable_selector: bool,
     ) -> Result<()> {
         self.get_entry()?.exec(
             config,
-            mime_apps,
-            system_apps,
             ExecMode::Open,
             args,
             selector,
@@ -91,24 +88,24 @@ impl DesktopHandler {
                 ErrorKind::NotFound(name.to_string_lossy().into())
             })?)
     }
+
+    /// Check a a desktop entry exists and if so, return a Desktop Handler
     pub fn resolve(name: OsString) -> Result<Self> {
         let path = Self::get_path(&name)?;
         DesktopEntry::try_from(path)?;
         Ok(Self(name))
     }
+
+    /// Launch a DesktopHandler's desktop entry
     pub fn launch(
         &self,
-        config: &Config,
-        mime_apps: &mut MimeApps,
-        system_apps: &SystemApps,
+        config: &mut Config,
         args: Vec<String>,
         selector: &str,
         enable_selector: bool,
     ) -> Result<()> {
         self.get_entry()?.exec(
             config,
-            mime_apps,
-            system_apps,
             ExecMode::Launch,
             args,
             selector,
