@@ -45,17 +45,7 @@ impl Config {
             .get_handler_from_user(mime, selector, use_selector)
         {
             Err(e) if matches!(*e.kind, ErrorKind::Cancelled) => Err(e),
-            h => h
-                .or_else(|_| {
-                    let wildcard =
-                        Mime::from_str(&format!("{}/*", mime.type_()))?;
-                    self.mime_apps.get_handler_from_user(
-                        &wildcard,
-                        selector,
-                        use_selector,
-                    )
-                })
-                .or_else(|_| self.get_handler_from_added_associations(mime)),
+            h => h.or_else(|_| self.get_handler_from_added_associations(mime)),
         }
     }
 
@@ -384,12 +374,47 @@ mod tests {
                 .to_string(),
             "mpv.desktop"
         );
-
         assert_eq!(
             config
                 .get_handler(&Mime::from_str("video/webm")?, "", false)?
                 .to_string(),
             "brave.desktop"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn complex_wildcard_mimes() -> Result<()> {
+        let mut config = Config::default();
+        config.mime_apps.add_handler(
+            &Mime::from_str("application/vnd.oasis.opendocument.*")?,
+            &DesktopHandler::assume_valid("startcenter.desktop".into()),
+        );
+        config.mime_apps.add_handler(
+            &Mime::from_str("application/vnd.openxmlformats-officedocument.*")?,
+            &DesktopHandler::assume_valid("startcenter.desktop".into()),
+        );
+
+        assert_eq!(
+            config
+                .get_handler(
+                    &Mime::from_str("application/vnd.oasis.opendocument.text")?,
+                    "",
+                    false
+                )?
+                .to_string(),
+            "startcenter.desktop"
+        );
+        assert_eq!(
+            config
+                .get_handler(
+                    &Mime::from_str("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")?,
+                    "",
+                    false
+                )?
+                .to_string(),
+            "startcenter.desktop"
         );
 
         Ok(())
