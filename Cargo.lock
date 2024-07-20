@@ -2109,11 +2109,10 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "clap_mangen",
- "handlr-regex",
 ]
 
 [[package]]
