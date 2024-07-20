@@ -31,6 +31,7 @@ pub trait Handleable {
     /// Get the desktop entry associated with the handler
     fn get_entry(&self) -> Result<DesktopEntry>;
     /// Open the given paths with the handler
+    #[mutants::skip] // Cannot test directly, runs commands
     fn open(
         &self,
         config: &mut Config,
@@ -68,17 +69,20 @@ impl FromStr for DesktopHandler {
 }
 
 impl Handleable for DesktopHandler {
+    #[mutants::skip] // Cannot test directly, depends on system state
     fn get_entry(&self) -> Result<DesktopEntry> {
         DesktopEntry::try_from(Self::get_path(&self.0)?)
     }
 }
 
 impl DesktopHandler {
+    /// Create a DesktopHandler, skipping validity checks
     pub fn assume_valid(name: OsString) -> Self {
         Self(name)
     }
 
     /// Get the path of a given desktop entry file
+    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn get_path(name: &std::ffi::OsStr) -> Result<PathBuf> {
         let mut path = PathBuf::from("applications");
         path.push(name);
@@ -97,6 +101,7 @@ impl DesktopHandler {
     }
 
     /// Launch a DesktopHandler's desktop entry
+    #[mutants::skip] // Cannot test directly, runs command
     pub fn launch(
         &self,
         config: &mut Config,
@@ -142,6 +147,7 @@ impl Handleable for RegexHandler {
 struct HandlerRegexSet(#[serde(with = "serde_regex")] RegexSet);
 
 impl PartialEq for HandlerRegexSet {
+    #[mutants::skip] // Trivial
     fn eq(&self, other: &Self) -> bool {
         self.patterns() == other.patterns()
     }
@@ -150,6 +156,7 @@ impl PartialEq for HandlerRegexSet {
 impl Eq for HandlerRegexSet {}
 
 impl Hash for HandlerRegexSet {
+    #[mutants::skip] // Trivial
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.patterns().hash(state);
     }
@@ -174,6 +181,7 @@ impl RegexApps {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::DesktopEntry;
     use url::Url;
 
     #[test]
@@ -185,25 +193,29 @@ mod tests {
         let regex_handler = RegexHandler {
             exec: String::from(exec),
             terminal: false,
-            regexes: HandlerRegexSet(
-                RegexSet::new(regexes).expect("Test regex is invalid"),
-            ),
+            regexes: HandlerRegexSet(RegexSet::new(regexes)?),
         };
 
         let regex_apps = RegexApps(vec![regex_handler.clone()]);
 
         assert_eq!(
-            regex_apps.get_handler(&UserPath::Url(Url::parse(
-                "https://youtu.be/dQw4w9WgXcQ"
-            )?))?,
-            regex_handler
+            regex_apps
+                .get_handler(&UserPath::Url(Url::parse(
+                    "https://youtu.be/dQw4w9WgXcQ"
+                )?))?
+                .get_entry()?,
+            DesktopEntry {
+                exec: exec.to_string(),
+                terminal: false,
+                ..Default::default()
+            }
         );
 
-        regex_apps
+        assert!(regex_apps
             .get_handler(&UserPath::Url(Url::parse(
                 "https://en.wikipedia.org",
             )?))
-            .unwrap_err();
+            .is_err());
 
         Ok(())
     }

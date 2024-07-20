@@ -5,7 +5,7 @@ use crate::{
 };
 use derive_more::Deref;
 use mime::Mime;
-use std::{collections::HashMap, convert::TryFrom, ffi::OsString};
+use std::{collections::HashMap, convert::TryFrom, ffi::OsString, io::Write};
 
 #[derive(Debug, Default, Clone, Deref)]
 pub struct SystemApps(HashMap<Mime, DesktopList>);
@@ -22,6 +22,7 @@ impl SystemApps {
     }
 
     /// Get all system-level desktop entries on the system
+    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn get_entries(
     ) -> Result<impl Iterator<Item = (OsString, DesktopEntry)>> {
         Ok(xdg::BaseDirectories::new()?
@@ -39,6 +40,7 @@ impl SystemApps {
     }
 
     /// Create a new instance of `SystemApps`
+    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn populate() -> Result<Self> {
         let mut map = HashMap::<Mime, DesktopList>::with_capacity(50);
 
@@ -55,15 +57,50 @@ impl SystemApps {
     }
 
     /// List the available handlers
-    pub fn list_handlers() -> Result<()> {
-        use std::io::Write;
-
-        let stdout = std::io::stdout();
-        let mut stdout = stdout.lock();
-
+    #[mutants::skip] // Cannot test directly, depends on system state
+    pub fn list_handlers<W: Write>(writer: &mut W) -> Result<()> {
         Self::get_entries()?.try_for_each(|(_, e)| {
-            writeln!(stdout, "{}\t{}", e.file_name.to_string_lossy(), e.name)
+            writeln!(writer, "{}\t{}", e.file_name.to_string_lossy(), e.name)
         })?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn get_handlers() -> Result<()> {
+        let mut expected_handlers = DesktopList::default();
+        expected_handlers
+            .push_back(DesktopHandler::assume_valid("helix.desktop".into()));
+        expected_handlers
+            .push_back(DesktopHandler::assume_valid("nvim.desktop".into()));
+
+        let mime = Mime::from_str("text/plain")?;
+        let mut associations: HashMap<Mime, DesktopList> = HashMap::new();
+
+        associations.insert(mime.clone(), expected_handlers.clone());
+
+        let system_apps = SystemApps(associations);
+
+        assert_eq!(
+            system_apps
+                .get_handler(&mime)
+                .expect("Could not get handler")
+                .to_string(),
+            "helix.desktop"
+        );
+        assert_eq!(
+            system_apps
+                .get_handlers(&mime)
+                .expect("Could not get handler"),
+            expected_handlers
+        );
 
         Ok(())
     }

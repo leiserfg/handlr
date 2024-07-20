@@ -19,13 +19,22 @@ use std::{
 /// Helper struct for a list of `DesktopHandler`s
 #[serde_as]
 #[derive(
-    Debug, Default, Clone, Deref, DerefMut, SerializeDisplay, DeserializeFromStr,
+    Debug,
+    Default,
+    Clone,
+    Deref,
+    DerefMut,
+    SerializeDisplay,
+    DeserializeFromStr,
+    PartialEq,
+    Eq,
 )]
 pub struct DesktopList(VecDeque<DesktopHandler>);
 
 impl FromStr for DesktopList {
     type Err = Error;
 
+    #[mutants::skip] // Cannot test directly, depends on system state
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(
             s.split(';')
@@ -72,12 +81,8 @@ impl MimeApps {
     }
 
     /// Entirely remove a given mime's default application association
-    pub fn unset_handler(&mut self, mime: &Mime) -> Result<()> {
-        if let Some(_unset) = self.default_apps.remove(mime) {
-            self.save()?;
-        }
-
-        Ok(())
+    pub fn unset_handler(&mut self, mime: &Mime) -> Option<DesktopList> {
+        self.default_apps.remove(mime)
     }
 
     /// Remove a given handler from a given mime's default file associaion
@@ -85,16 +90,13 @@ impl MimeApps {
         &mut self,
         mime: &Mime,
         handler: &DesktopHandler,
-    ) -> Result<()> {
+    ) -> Option<DesktopHandler> {
         let handler_list = self.default_apps.entry(mime.clone()).or_default();
 
-        if let Some(pos) = handler_list.iter().position(|x| *x == *handler) {
-            if let Some(_removed) = handler_list.remove(pos) {
-                self.save()?
-            }
-        }
-
-        Ok(())
+        handler_list
+            .iter()
+            .position(|x| *x == *handler)
+            .and_then(|pos| handler_list.remove(pos))
     }
 
     /// Get a list of handlers associated with a wildcard mime
@@ -124,6 +126,7 @@ impl MimeApps {
     }
 
     /// Get the handler associated with a given mime from mimeapps.list's default apps
+    #[mutants::skip] // Cannot entirely test, namely cannot test selector functionality
     pub(crate) fn get_handler_from_user(
         &self,
         mime: &Mime,
@@ -163,6 +166,7 @@ impl MimeApps {
     }
 
     /// Get the path to the user's mimeapps.list file
+    #[mutants::skip] // Cannot test directly, depends on system state
     fn path() -> Result<PathBuf> {
         let mut config = xdg::BaseDirectories::new()?.get_config_home();
         config.push("mimeapps.list");
@@ -170,6 +174,7 @@ impl MimeApps {
     }
 
     /// Read and parse mimeapps.list
+    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn read() -> Result<Self> {
         let exists = std::path::Path::new(&Self::path()?).exists();
 
@@ -189,6 +194,7 @@ impl MimeApps {
     }
 
     /// Save associations to mimeapps.list
+    #[mutants::skip] // Cannot test directly, alters system state
     pub fn save(&self) -> Result<()> {
         let file = std::fs::OpenOptions::new()
             .read(true)
@@ -204,6 +210,7 @@ impl MimeApps {
 }
 
 /// Run given selector command
+#[mutants::skip] // Cannot test directly, runs external command
 fn select<O: Iterator<Item = String>>(
     selector: &str,
     mut opts: O,
@@ -245,5 +252,185 @@ fn select<O: Iterator<Item = String>>(
         Err(Error::from(ErrorKind::Cancelled))
     } else {
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_add_handlers(mime_apps: &mut MimeApps) -> Result<()> {
+        mime_apps.add_handler(
+            &Mime::from_str("text/plain")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        );
+
+        // Should return first added handler
+        assert_eq!(
+            mime_apps
+                .get_handler_from_user(
+                    &Mime::from_str("text/plain")?,
+                    "",
+                    false,
+                )?
+                .to_string(),
+            "Helix.desktop"
+        );
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/plain")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+        );
+
+        // Should still return first added handler
+        assert_eq!(
+            mime_apps
+                .get_handler_from_user(
+                    &Mime::from_str("text/plain")?,
+                    "",
+                    false,
+                )?
+                .to_string(),
+            "Helix.desktop"
+        );
+
+        Ok(())
+    }
+
+    fn test_remove_handlers(mime_apps: &mut MimeApps) -> Result<()> {
+        mime_apps.remove_handler(
+            &Mime::from_str("text/plain")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        );
+
+        // With first added handler removed, second handler replaces it
+        assert_eq!(
+            mime_apps
+                .get_handler_from_user(
+                    &Mime::from_str("text/plain")?,
+                    "",
+                    false,
+                )?
+                .to_string(),
+            "nvim.desktop"
+        );
+
+        mime_apps.remove_handler(
+            &Mime::from_str("text/plain")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+        );
+
+        // Both handlers removed, should not be any left
+        assert!(mime_apps
+            .get_handler_from_user(&Mime::from_str("text/plain")?, "", false)
+            .is_err());
+
+        Ok(())
+    }
+
+    fn test_set_handlers(mime_apps: &mut MimeApps) -> Result<()> {
+        mime_apps.set_handler(
+            &Mime::from_str("text/plain")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        );
+
+        assert_eq!(
+            mime_apps
+                .get_handler_from_user(
+                    &Mime::from_str("text/plain")?,
+                    "",
+                    false,
+                )?
+                .to_string(),
+            "Helix.desktop"
+        );
+
+        mime_apps.set_handler(
+            &Mime::from_str("text/plain")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+        );
+
+        // Should return second set handler because it should replace the first one
+        assert_eq!(
+            mime_apps
+                .get_handler_from_user(
+                    &Mime::from_str("text/plain")?,
+                    "",
+                    false,
+                )?
+                .to_string(),
+            "nvim.desktop"
+        );
+
+        Ok(())
+    }
+
+    fn test_unset_handlers(mime_apps: &mut MimeApps) -> Result<()> {
+        mime_apps.unset_handler(&Mime::from_str("text/plain")?);
+
+        // Handler completely unset, should not be any left
+        assert!(mime_apps
+            .get_handler_from_user(&Mime::from_str("text/plain")?, "", false)
+            .is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_and_remove_handlers() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        test_add_handlers(&mut mime_apps)?;
+        test_remove_handlers(&mut mime_apps)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_and_unset_handlers() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        test_set_handlers(&mut mime_apps)?;
+        test_unset_handlers(&mut mime_apps)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_and_unset_handlers() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        test_add_handlers(&mut mime_apps)?;
+        test_unset_handlers(&mut mime_apps)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_and_remove_handlers() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        test_set_handlers(&mut mime_apps)?;
+        test_remove_handlers(&mut mime_apps)?;
+
+        Ok(())
+    }
+
+    #[test]
+    // Meant to test serialization by proxy
+    fn test_desktop_list_display() -> Result<()> {
+        let desktop_list = DesktopList(
+            ["helix.desktop", "nvim.desktop", "kakoune.desktop"]
+                .iter()
+                .map(|h| DesktopHandler::assume_valid(h.into()))
+                .collect(),
+        );
+
+        assert_eq!(
+            format!("{desktop_list}"),
+            "helix.desktop;nvim.desktop;kakoune.desktop;"
+        );
+
+        Ok(())
     }
 }

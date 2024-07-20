@@ -12,14 +12,13 @@ use once_cell::sync::Lazy;
 use std::{
     convert::TryFrom,
     ffi::OsString,
-    io::IsTerminal,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
 };
 
 /// Represents a desktop entry file for an application
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DesktopEntry {
     /// Name of the application
     pub(crate) name: String,
@@ -46,6 +45,7 @@ pub enum Mode {
 
 impl DesktopEntry {
     /// Execute the command in `exec` in the given mode and with the given arguments
+    #[mutants::skip] // Cannot test directly, runs external command
     pub fn exec(
         &self,
         config: &mut Config,
@@ -70,6 +70,7 @@ impl DesktopEntry {
     }
 
     /// Internal helper function for `exec`
+    #[mutants::skip] // Cannot test directly, runs command
     fn exec_inner(
         &self,
         config: &mut Config,
@@ -85,7 +86,7 @@ impl DesktopEntry {
             cmd
         };
 
-        if self.terminal && std::io::stdout().is_terminal() {
+        if self.terminal && config.terminal_output {
             cmd.spawn()?.wait()?;
         } else {
             cmd.stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
@@ -95,6 +96,7 @@ impl DesktopEntry {
     }
 
     /// Get the `exec` command, formatted with given arguments
+    #[mutants::skip] // Cannot test directly, alters system state
     pub fn get_cmd(
         &self,
         config: &mut Config,
@@ -141,7 +143,7 @@ impl DesktopEntry {
 
         // If the entry expects a terminal (emulator), but this process is not running in one, we
         // launch a new one.
-        if self.terminal && !std::io::stdout().is_terminal() {
+        if self.terminal && config.terminal_output {
             let term_cmd = config.terminal(selector, use_selector)?;
             exec = shlex::split(&term_cmd)
                 .ok_or_else(|| Error::from(ErrorKind::BadCmd(term_cmd)))?
@@ -201,6 +203,12 @@ impl DesktopEntry {
     pub fn is_terminal_emulator(&self) -> bool {
         self.categories.contains(&"TerminalEmulator".to_string())
     }
+
+    #[cfg(test)]
+    /// Internal helper function for tests outside of this file
+    pub fn test_get_from_path(path: &str) -> Option<DesktopEntry> {
+        Self::parse_file(Path::new(path))
+    }
 }
 
 impl TryFrom<PathBuf> for DesktopEntry {
@@ -215,21 +223,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn complex_exec() {
+    fn complex_exec() -> Result<()> {
         // Note that this entry also has no category key
-        let entry = DesktopEntry::parse_file(Path::new("tests/cmus.desktop"))
-            .expect("DesktopEntry::parse_file() returned None");
+        let entry =
+            DesktopEntry::try_from(PathBuf::from("tests/cmus.desktop"))?;
         assert_eq!(entry.mime_type.len(), 2);
         assert_eq!(entry.mime_type[0].essence_str(), "audio/mp3");
         assert_eq!(entry.mime_type[1].essence_str(), "audio/ogg");
+
+        let mut config = Config::default();
+        let args = vec!["test".to_string()];
+        assert_eq!(entry.get_cmd(&mut config, args, "", false)?,
+            (
+                "bash".to_string(),
+                [
+                    "-c", 
+                    "(! pgrep cmus && tilix -e cmus && tilix -a session-add-down -e cava); sleep 0.1 && cmus-remote -q test"
+                ].iter().map(|s| s.to_string()).collect()
+            )
+        );
+        assert!(!entry.is_terminal_emulator());
+
+        Ok(())
     }
 
     #[test]
-    fn no_mime_type() {
-        let entry = DesktopEntry::parse_file(Path::new(
+    fn terminal_emulator() -> Result<()> {
+        let entry = DesktopEntry::try_from(PathBuf::from(
             "tests/org.wezfurlong.wezterm.desktop",
-        ))
-        .expect("DesktopEntry::parse_file() returned None");
-        assert_eq!(entry.mime_type.len(), 0);
+        ))?;
+        assert!(entry.mime_type.is_empty());
+
+        let mut config = Config::default();
+        let args = vec!["test".to_string()];
+        assert_eq!(
+            entry.get_cmd(&mut config, args, "", false)?,
+            (
+                "wezterm".to_string(),
+                ["start", "--cwd", ".", "test"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            )
+        );
+        assert!(entry.is_terminal_emulator());
+
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_desktop_entries() -> Result<()> {
+        let empty_name =
+            DesktopEntry::try_from(PathBuf::from("tests/empty_name.desktop"));
+
+        assert!(empty_name.is_err());
+
+        let empty_exec =
+            DesktopEntry::try_from(PathBuf::from("tests/empty_exec.desktop"));
+
+        assert!(empty_exec.is_err());
+
+        Ok(())
     }
 }

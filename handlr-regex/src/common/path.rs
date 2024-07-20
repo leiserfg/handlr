@@ -7,13 +7,14 @@ use serde::Serialize;
 use std::{
     convert::{TryFrom, TryInto},
     fmt::{Display, Formatter},
+    io::Write,
     path::PathBuf,
     str::FromStr,
 };
 use tabled::Tabled;
 use url::Url;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum UserPath {
     Url(Url),
     File(PathBuf),
@@ -73,7 +74,14 @@ impl UserPathTable {
     }
 }
 
-pub fn mime_table(paths: &[UserPath], output_json: bool) -> Result<()> {
+/// Render a table of mime types from a list of paths
+/// and write it to the given writer
+pub fn mime_table<W: Write>(
+    writer: &mut W,
+    paths: &[UserPath],
+    output_json: bool,
+    terminal_output: bool,
+) -> Result<()> {
     let rows = paths
         .iter()
         .map(UserPathTable::new)
@@ -82,10 +90,68 @@ pub fn mime_table(paths: &[UserPath], output_json: bool) -> Result<()> {
     let table = if output_json {
         serde_json::to_string(&rows)?
     } else {
-        render_table(&rows)
+        render_table(&rows, terminal_output)
     };
 
-    println!("{table}");
+    writeln!(writer, "{table}")?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Helper function to create a vector of UserPaths for testing `mime_table`
+    fn paths() -> Result<Vec<UserPath>> {
+        [
+            "tests",
+            "tests/cat",
+            "tests/cmus.desktop",
+            "tests/empty.txt",
+            "tests/no_html_tags.html",
+            "tests/org.wezfurlong.wezterm.desktop",
+            "tests/p.html",
+            "tests/rust.vim",
+            "tests/SettingsWidgetFdoSecrets.ui",
+            "https://duckduckgo.com",
+            ".",
+            "../README.md",
+        ]
+        .iter()
+        .map(|p| UserPath::from_str(p))
+        .collect()
+    }
+
+    #[test]
+    fn mime_table_terminal() -> Result<()> {
+        let mut buffer = Vec::new();
+        mime_table(&mut buffer, &paths()?, false, true)?;
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_mime_table_piped() -> Result<()> {
+        let mut buffer = Vec::new();
+        mime_table(&mut buffer, &paths()?, false, false)?;
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_mime_table_json() -> Result<()> {
+        //NOTE: both calls should have the same result
+        // JSON output and terminal output
+        let mut buffer = Vec::new();
+        mime_table(&mut buffer, &paths()?, true, true)?;
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        // JSON output and no terminal output
+        let mut buffer = Vec::new();
+        mime_table(&mut buffer, &paths()?, true, false)?;
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
+    }
 }

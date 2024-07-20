@@ -9,8 +9,11 @@ use handlr_regex::{
 };
 use std::io::IsTerminal;
 
+#[mutants::skip] // Cannot test directly at the moment
 fn main() -> Result<()> {
     let mut config = Config::new().unwrap_or_default();
+    let terminal_output = std::io::stdout().is_terminal();
+    let mut stdout = std::io::stdout().lock();
 
     let res = || -> Result<()> {
         match Cmd::parse() {
@@ -43,6 +46,7 @@ fn main() -> Result<()> {
                 disable_selector,
             } => {
                 config.show_handler(
+                    &mut stdout,
                     &mime,
                     json,
                     selector,
@@ -62,10 +66,10 @@ fn main() -> Result<()> {
                 disable_selector,
             )?,
             Cmd::Mime { paths, json } => {
-                mime_table(&paths, json)?;
+                mime_table(&mut stdout, &paths, json, terminal_output)?;
             }
             Cmd::List { all, json } => {
-                config.print(all, json)?;
+                config.print(&mut stdout, all, json)?;
             }
             Cmd::Unset { mime } => {
                 config.unset_handler(&mime)?;
@@ -78,16 +82,16 @@ fn main() -> Result<()> {
                 mimes,
             } => {
                 if desktop_files {
-                    SystemApps::list_handlers()?;
+                    SystemApps::list_handlers(&mut stdout)?;
                 } else if mimes {
-                    common::db_autocomplete()?;
+                    common::db_autocomplete(&mut stdout)?;
                 }
             }
         }
         Ok(())
     }();
 
-    match (res, std::io::stdout().is_terminal()) {
+    match (res, terminal_output) {
         (Err(e), _) if matches!(*e.kind, ErrorKind::Cancelled) => {
             std::process::exit(1);
         }
