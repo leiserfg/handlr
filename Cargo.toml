@@ -21,7 +21,6 @@ edition.workspace = true
 license = "MIT"
 description.workspace = true
 repository = "https://github.com/Anomalocaridid/handlr-regex"
-readme = "../README.md"
 
 [dependencies]
 clap.workspace = true
