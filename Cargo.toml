@@ -10,7 +10,7 @@ clap = { version = "4.5.2", features = ["derive"] }
 
 [workspace.package]
 edition = "2021"
-version = "0.10.1"
+version = "0.11.0"
 description = "Fork of handlr with regex support"
 
 [package]
