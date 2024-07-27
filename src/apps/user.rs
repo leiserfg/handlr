@@ -10,8 +10,9 @@ use serde_with::{
     serde_as, DeserializeFromStr, DisplayFromStr, SerializeDisplay,
 };
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, VecDeque},
     fmt::Display,
+    io::{Read, Write},
     path::PathBuf,
     str::FromStr,
 };
@@ -34,13 +35,23 @@ pub struct DesktopList(VecDeque<DesktopHandler>);
 impl FromStr for DesktopList {
     type Err = Error;
 
-    #[mutants::skip] // Cannot test directly, depends on system state
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Kludge to help with testing this and things that rely on this
+        // Otherwise, this would depend on system state
+        fn filter(s: &str) -> Option<DesktopHandler> {
+            #[cfg(not(test))]
+            let result = DesktopHandler::from_str(s).ok();
+            #[cfg(test)]
+            let result = Some(DesktopHandler::assume_valid(s.into()));
+
+            result
+        }
+
         Ok(Self(
             s.split(';')
                 .filter(|s| !s.is_empty()) // Account for ending semicolon
                 .unique()
-                .filter_map(|s| DesktopHandler::from_str(s).ok())
+                .filter_map(filter)
                 .collect::<VecDeque<DesktopHandler>>(),
         ))
     }
@@ -49,13 +60,17 @@ impl FromStr for DesktopList {
 /// Represents user-configured mimeapps.list file
 #[serde_as]
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+// IMPORTANT: This ensures missing fields are replaced by a default value rather than making deserialization fail entirely
+#[serde(default)]
 pub struct MimeApps {
     #[serde(rename = "Added Associations")]
-    #[serde_as(as = "HashMap<DisplayFromStr, _>")]
-    pub added_associations: HashMap<Mime, DesktopList>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde_as(as = "BTreeMap<DisplayFromStr, _>")]
+    pub added_associations: BTreeMap<Mime, DesktopList>,
     #[serde(rename = "Default Applications")]
-    #[serde_as(as = "HashMap<DisplayFromStr, _>")]
-    pub default_apps: HashMap<Mime, DesktopList>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde_as(as = "BTreeMap<DisplayFromStr, _>")]
+    pub default_apps: BTreeMap<Mime, DesktopList>,
 }
 
 impl Display for DesktopList {
@@ -184,7 +199,13 @@ impl MimeApps {
             .read(true)
             .open(Self::path()?)?;
 
-        let mut mimeapps: Self = serde_ini::de::from_read(file)?;
+        Self::read_from(file)
+    }
+
+    /// Deserialize MimeApps from reader
+    /// Makes testing easier
+    fn read_from<R: Read>(reader: R) -> Result<Self> {
+        let mut mimeapps: Self = serde_ini::de::from_read(reader)?;
 
         // Remove empty default associations
         // Can happen if all handlers set are invalid (e.g. do not exist)
@@ -196,15 +217,20 @@ impl MimeApps {
     /// Save associations to mimeapps.list
     #[mutants::skip] // Cannot test directly, alters system state
     pub fn save(&self) -> Result<()> {
-        let file = std::fs::OpenOptions::new()
+        let mut file = std::fs::OpenOptions::new()
             .read(true)
             .create(true)
             .write(true)
             .truncate(true)
             .open(Self::path()?)?;
 
-        serde_ini::ser::to_writer(file, self)?;
+        self.save_to(&mut file)
+    }
 
+    /// Serialize MimeApps and write to writer
+    /// Makes testing easier
+    fn save_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        serde_ini::ser::to_writer(writer, self)?;
         Ok(())
     }
 }
@@ -258,6 +284,8 @@ fn select<O: Iterator<Item = String>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
+    use std::fs::File;
 
     fn test_add_handlers(mime_apps: &mut MimeApps) -> Result<()> {
         mime_apps.add_handler(
@@ -432,5 +460,37 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    // Helper function to test serializing and deserializing mimeapps.list files
+    fn mimeapps_round_trip(path: &str) -> Result<()> {
+        let file = File::open(path)?;
+        let mime_apps = MimeApps::read_from(file)?;
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+
+        assert_eq!(
+            String::from_utf8(buffer)?,
+            // Unfortunately, serde_ini outputs \r\n line endings
+            std::fs::read_to_string(path)?.replace('\n', "\r\n")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn mimeapps_no_added_round_trip() -> Result<()> {
+        mimeapps_round_trip("./tests/mimeapps_no_added.list")
+    }
+
+    #[test]
+    fn mimeapps_no_default_round_trip() -> Result<()> {
+        mimeapps_round_trip("./tests/mimeapps_no_default.list")
+    }
+
+    #[test]
+    fn mimeapps_sorted_round_trip() -> Result<()> {
+        mimeapps_round_trip("./tests/mimeapps_sorted.list")
     }
 }
