@@ -143,7 +143,8 @@ impl DesktopEntry {
 
         // If the entry expects a terminal (emulator), but this process is not running in one, we
         // launch a new one.
-        if self.terminal && config.terminal_output {
+        // TODO: make regression test (currently infeasible with terminal method's reliance on system state)
+        if self.terminal && !config.terminal_output {
             let term_cmd = config.terminal(selector, use_selector)?;
             exec = shlex::split(&term_cmd)
                 .ok_or_else(|| Error::from(ErrorKind::BadCmd(term_cmd)))?

@@ -40,12 +40,16 @@ impl TryFrom<&Path> for MimeType {
         guess.file_name(&path.to_string_lossy());
 
         let mime = if let Some(mime) =
-            mime_to_option(&db, guess.guess().mime_type().clone())
+            mime_to_option(&db, guess.guess().mime_type().clone(), true)
         {
             mime
         } else {
-            mime_to_option(&db, guess.path(path).guess().mime_type().clone())
-                .ok_or_else(|| ErrorKind::Ambiguous(path.to_owned()))?
+            mime_to_option(
+                &db,
+                guess.path(path).guess().mime_type().clone(),
+                false,
+            )
+            .ok_or_else(|| ErrorKind::Ambiguous(path.to_owned()))?
         };
 
         Ok(Self(mime))
@@ -53,11 +57,16 @@ impl TryFrom<&Path> for MimeType {
 }
 
 /// Tests if a given mime is "acceptable" and returns None otherwise
-fn mime_to_option(db: &xdg_mime::SharedMimeInfo, mime: Mime) -> Option<Mime> {
+fn mime_to_option(
+    db: &xdg_mime::SharedMimeInfo,
+    mime: Mime,
+    discard_zerosize: bool,
+) -> Option<Mime> {
     let application_zerosize: Mime = "application/x-zerosize".parse().ok()?;
 
     if mime == mime::APPLICATION_OCTET_STREAM
-        || db.mime_type_equal(&mime, &application_zerosize)
+        || (db.mime_type_equal(&mime, &application_zerosize)
+            && discard_zerosize)
     {
         None
     } else {
@@ -137,6 +146,10 @@ mod tests {
         assert_eq!(
             MimeType::try_from(Path::new("./tests/no_html_tags.html"))?.0,
             "text/html"
+        );
+        assert_eq!(
+            MimeType::try_from(Path::new("./tests/empty"))?.0,
+            "application/x-zerosize"
         );
 
         Ok(())
