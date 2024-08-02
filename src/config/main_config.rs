@@ -216,13 +216,7 @@ impl Config {
         .ok()
         .and_then(|h| h.get_entry().ok())
         // Otherwise, get a terminal emulator program
-        .or_else(|| {
-            let entry = SystemApps::get_entries()
-                .ok()?
-                .find(|(_handler, entry)| entry.is_terminal_emulator())?;
-
-            Some(entry.1)
-        })
+        .or_else(|| self.system_apps.terminal_emulator())
         .map(|e| {
             let mut exec = e.exec.to_owned();
 
@@ -233,7 +227,7 @@ impl Config {
 
             exec
         })
-        .ok_or(Error::from(ErrorKind::NoTerminal))
+        .ok_or_else(|| Error::from(ErrorKind::NoTerminal))
     }
 
     /// Print the set associations and system-level associations in a table
