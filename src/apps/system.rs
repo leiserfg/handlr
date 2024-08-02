@@ -3,7 +3,7 @@ use crate::{
     common::{DesktopEntry, DesktopHandler, Handleable},
     error::Result,
 };
-use derive_more::Deref;
+use derive_more::{Deref, DerefMut};
 use mime::Mime;
 use std::{collections::BTreeMap, convert::TryFrom, ffi::OsString, io::Write};
 

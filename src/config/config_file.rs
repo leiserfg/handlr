@@ -5,7 +5,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 /// The config file
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ConfigFile {
     /// Whether to enable the selector when multiple handlers are set

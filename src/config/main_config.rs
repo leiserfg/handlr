@@ -16,7 +16,7 @@ use crate::{
 
 /// A single struct that holds all apps and config.
 /// Used to streamline explicitly passing state.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Config {
     /// User-configured associations
     mime_apps: MimeApps,
@@ -202,6 +202,7 @@ impl Config {
 
     /// Get the command for the x-scheme-handler/terminal handler if one is set.
     /// Otherwise, finds a terminal emulator program and uses it.
+    // TODO: test falling back to system
     pub fn terminal(
         &self,
         selector: &str,
@@ -597,6 +598,35 @@ mod tests {
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, true, true, false)?;
         goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_command_set() -> Result<()> {
+        let mut config = Config::default();
+
+        config.mime_apps.add_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            &DesktopHandler::from_str("tests/org.wezfurlong.wezterm.desktop")?,
+        );
+
+        assert_eq!(config.terminal("", false)?, "wezterm start --cwd . -e");
+
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_command_fallback() -> Result<()> {
+        let mut config = Config::default();
+
+        config
+            .system_apps
+            .add_unassociated(DesktopHandler::from_str(
+                "tests/org.wezfurlong.wezterm.desktop",
+            )?);
+
+        assert_eq!(config.terminal("", false)?, "wezterm start --cwd . -e");
 
         Ok(())
     }
