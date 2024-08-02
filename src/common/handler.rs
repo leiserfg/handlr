@@ -68,7 +68,6 @@ impl FromStr for DesktopHandler {
 }
 
 impl Handleable for DesktopHandler {
-    #[mutants::skip] // Cannot test directly, depends on system state
     fn get_entry(&self) -> Result<DesktopEntry> {
         DesktopEntry::try_from(Self::get_path(&self.0)?)
     }
@@ -81,15 +80,18 @@ impl DesktopHandler {
     }
 
     /// Get the path of a given desktop entry file
-    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn get_path(name: &std::ffi::OsStr) -> Result<PathBuf> {
-        let mut path = PathBuf::from("applications");
-        path.push(name);
-        Ok(xdg::BaseDirectories::new()?
-            .find_data_file(path)
-            .ok_or_else(|| {
-                ErrorKind::NotFound(name.to_string_lossy().into())
-            })?)
+        if cfg!(test) {
+            Ok(PathBuf::from(name))
+        } else {
+            let mut path = PathBuf::from("applications");
+            path.push(name);
+            Ok(xdg::BaseDirectories::new()?
+                .find_data_file(path)
+                .ok_or_else(|| {
+                    ErrorKind::NotFound(name.to_string_lossy().into())
+                })?)
+        }
     }
 
     /// Check a a desktop entry exists and if so, return a Desktop Handler
