@@ -48,7 +48,7 @@ impl DesktopEntry {
     #[mutants::skip] // Cannot test directly, runs external command
     pub fn exec(
         &self,
-        config: &mut Config,
+        config: &Config,
         mode: Mode,
         arguments: Vec<String>,
         selector: &str,
@@ -73,7 +73,7 @@ impl DesktopEntry {
     #[mutants::skip] // Cannot test directly, runs command
     fn exec_inner(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         use_selector: bool,
@@ -96,10 +96,9 @@ impl DesktopEntry {
     }
 
     /// Get the `exec` command, formatted with given arguments
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn get_cmd(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         use_selector: bool,
@@ -226,9 +225,9 @@ mod tests {
         assert_eq!(entry.mime_type[0].essence_str(), "audio/mp3");
         assert_eq!(entry.mime_type[1].essence_str(), "audio/ogg");
 
-        let mut config = Config::default();
+        let config = Config::default();
         let args = vec!["test".to_string()];
-        assert_eq!(entry.get_cmd(&mut config, args, "", false)?,
+        assert_eq!(entry.get_cmd(& config, args, "", false)?,
             (
                 "bash".to_string(),
                 [
@@ -249,10 +248,10 @@ mod tests {
         ))?;
         assert!(entry.mime_type.is_empty());
 
-        let mut config = Config::default();
+        let config = Config::default();
         let args = vec!["test".to_string()];
         assert_eq!(
-            entry.get_cmd(&mut config, args, "", false)?,
+            entry.get_cmd(&config, args, "", false)?,
             (
                 "wezterm".to_string(),
                 ["start", "--cwd", ".", "test"]

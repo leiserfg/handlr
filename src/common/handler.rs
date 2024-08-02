@@ -33,7 +33,7 @@ pub trait Handleable {
     #[mutants::skip] // Cannot test directly, runs commands
     fn open(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         enable_selector: bool,
@@ -105,7 +105,7 @@ impl DesktopHandler {
     #[mutants::skip] // Cannot test directly, runs command
     pub fn launch(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         enable_selector: bool,

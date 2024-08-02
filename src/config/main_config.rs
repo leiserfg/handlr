@@ -75,7 +75,7 @@ impl Config {
     /// Given a mime and arguments, launch the associated handler with the arguments
     #[mutants::skip] // Cannot test directly, runs external command
     pub fn launch_handler(
-        &mut self,
+        &self,
         mime: &Mime,
         args: Vec<UserPath>,
         selector: Option<String>,
@@ -95,9 +95,8 @@ impl Config {
     }
 
     /// Get the handler associated with a given mime
-    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn show_handler<W: Write>(
-        &mut self,
+        &self,
         writer: &mut W,
         mime: &Mime,
         output_json: bool,
@@ -155,7 +154,7 @@ impl Config {
     /// Open the given paths with their respective handlers
     #[mutants::skip] // Cannot test directly, alters system state
     pub fn open_paths(
-        &mut self,
+        &self,
         paths: &[UserPath],
         selector: Option<String>,
         enable_selector: bool,
