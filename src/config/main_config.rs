@@ -73,7 +73,6 @@ impl Config {
     }
 
     /// Given a mime and arguments, launch the associated handler with the arguments
-    /// If a terminal emulator is needed, but not set, one will be chosen and set
     #[mutants::skip] // Cannot test directly, runs external command
     pub fn launch_handler(
         &mut self,
@@ -96,7 +95,6 @@ impl Config {
     }
 
     /// Get the handler associated with a given mime
-    /// If a terminal emulator is needed, but not set, one will be chosen and set
     #[mutants::skip] // Cannot test directly, depends on system state
     pub fn show_handler<W: Write>(
         &mut self,
@@ -155,7 +153,6 @@ impl Config {
     }
 
     /// Open the given paths with their respective handlers
-    /// If a terminal emulator is needed, but not set, one will be chosen and set
     #[mutants::skip] // Cannot test directly, alters system state
     pub fn open_paths(
         &mut self,
@@ -204,57 +201,39 @@ impl Config {
     }
 
     /// Get the command for the x-scheme-handler/terminal handler if one is set.
-    /// Otherwise, finds a terminal emulator program, sets it as the handler, and makes a notification.
-    #[mutants::skip] // Cannot test directly, alters system state
+    /// Otherwise, finds a terminal emulator program and uses it.
     pub fn terminal(
-        &mut self,
+        &self,
         selector: &str,
         use_selector: bool,
     ) -> Result<String> {
-        let terminal_entry = self
-            .get_handler(
-                &Mime::from_str("x-scheme-handler/terminal")?,
-                selector,
-                use_selector,
-            )
-            .ok()
-            .and_then(|h| h.get_entry().ok());
+        // Get the terminal handler if there is one set
+        self.get_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            selector,
+            use_selector,
+        )
+        .ok()
+        .and_then(|h| h.get_entry().ok())
+        // Otherwise, get a terminal emulator program
+        .or_else(|| {
+            let entry = SystemApps::get_entries()
+                .ok()?
+                .find(|(_handler, entry)| entry.is_terminal_emulator())?;
 
-        terminal_entry
-            .or_else(|| {
-                let entry = SystemApps::get_entries()
-                    .ok()?
-                    .find(|(_handler, entry)| {
-                        entry.is_terminal_emulator()
-                    })?;
+            Some(entry.1)
+        })
+        .map(|e| {
+            let mut exec = e.exec.to_owned();
 
-                crate::utils::notify(
-                    "handlr",
-                    &format!(
-                        "Guessed terminal emulator: {}.\n\nIf this is wrong, use `handlr set x-scheme-handler/terminal` to update it.",
-                        entry.0.to_string_lossy()
-                    )
-                ).ok()?;
+            if let Some(opts) = &self.config.term_exec_args {
+                exec.push(' ');
+                exec.push_str(opts)
+            }
 
-                self.mime_apps.set_handler(
-                    &Mime::from_str("x-scheme-handler/terminal").ok()?,
-                    &DesktopHandler::assume_valid(entry.0),
-                );
-                self.mime_apps.save().ok()?;
-
-                Some(entry.1)
-            })
-            .map(|e| {
-                let mut exec = e.exec.to_owned();
-
-                if let Some(opts) = &self.config.term_exec_args {
-                    exec.push(' ');
-                    exec.push_str(opts)
-                }
-
-                exec
-            })
-            .ok_or(Error::from(ErrorKind::NoTerminal))
+            exec
+        })
+        .ok_or(Error::from(ErrorKind::NoTerminal))
     }
 
     /// Print the set associations and system-level associations in a table
