@@ -17,46 +17,6 @@ use std::{
     str::FromStr,
 };
 
-/// Helper struct for a list of `DesktopHandler`s
-#[serde_as]
-#[derive(
-    Debug,
-    Default,
-    Clone,
-    Deref,
-    DerefMut,
-    SerializeDisplay,
-    DeserializeFromStr,
-    PartialEq,
-    Eq,
-)]
-pub struct DesktopList(VecDeque<DesktopHandler>);
-
-impl FromStr for DesktopList {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Kludge to help with testing this and things that rely on this
-        // Otherwise, this would depend on system state
-        fn filter(s: &str) -> Option<DesktopHandler> {
-            #[cfg(not(test))]
-            let result = DesktopHandler::from_str(s).ok();
-            #[cfg(test)]
-            let result = Some(DesktopHandler::assume_valid(s.into()));
-
-            result
-        }
-
-        Ok(Self(
-            s.split(';')
-                .filter(|s| !s.is_empty()) // Account for ending semicolon
-                .unique()
-                .filter_map(filter)
-                .collect::<VecDeque<DesktopHandler>>(),
-        ))
-    }
-}
-
 /// Represents user-configured mimeapps.list file
 #[serde_as]
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -73,9 +33,36 @@ pub struct MimeApps {
     pub default_apps: BTreeMap<Mime, DesktopList>,
 }
 
+/// Helper struct for a list of `DesktopHandler`s
+#[serde_as]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Deref,
+    DerefMut,
+    SerializeDisplay,
+    DeserializeFromStr,
+    PartialEq,
+)]
+pub struct DesktopList(VecDeque<DesktopHandler>);
+
+impl FromStr for DesktopList {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(
+            s.split(';')
+                .filter(|s| !s.is_empty()) // Account for ending/duplicated semicolons
+                .unique() // Remove duplicate entries
+                .map(DesktopHandler::from_str)
+                .collect::<Result<_>>()?,
+        ))
+    }
+}
+
 impl Display for DesktopList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Ensure final semicolon is added
         write!(f, "{};", self.iter().join(";"))
     }
 }
@@ -205,18 +192,19 @@ impl MimeApps {
     /// Deserialize MimeApps from reader
     /// Makes testing easier
     fn read_from<R: Read>(reader: R) -> Result<Self> {
-        let mut mimeapps: Self = serde_ini::de::from_read(reader)?;
+        let mut mime_apps: MimeApps = serde_ini::de::from_read(reader)?;
 
-        // Remove empty default associations
-        // Can happen if all handlers set are invalid (e.g. do not exist)
-        mimeapps.default_apps.retain(|_, h| !h.is_empty());
+        // Remove empty entries
+        mime_apps
+            .default_apps
+            .retain(|_, handlers| !handlers.is_empty());
 
-        Ok(mimeapps)
+        Ok(mime_apps)
     }
 
     /// Save associations to mimeapps.list
     #[mutants::skip] // Cannot test directly, alters system state
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&mut self) -> Result<()> {
         if cfg!(test) {
             Ok(())
         } else {
@@ -233,7 +221,9 @@ impl MimeApps {
 
     /// Serialize MimeApps and write to writer
     /// Makes testing easier
-    fn save_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn save_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
+        // Remove empty entries
+        self.default_apps.retain(|_, handlers| !handlers.is_empty());
         serde_ini::ser::to_writer(writer, self)?;
         Ok(())
     }
@@ -290,24 +280,6 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use std::fs::File;
-
-    #[test]
-    // Meant to test serialization by proxy
-    fn test_desktop_list_display() -> Result<()> {
-        let desktop_list = DesktopList(
-            ["helix.desktop", "nvim.desktop", "kakoune.desktop"]
-                .iter()
-                .map(|h| DesktopHandler::assume_valid(h.into()))
-                .collect(),
-        );
-
-        assert_eq!(
-            format!("{desktop_list}"),
-            "helix.desktop;nvim.desktop;kakoune.desktop;"
-        );
-
-        Ok(())
-    }
 
     // Helper function to test serializing and deserializing mimeapps.list files
     fn mimeapps_round_trip(path: &str) -> Result<()> {

@@ -63,7 +63,7 @@ impl Display for DesktopHandler {
 impl FromStr for DesktopHandler {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        DesktopHandler::resolve(s.into())
+        Ok(DesktopHandler(s.into()))
     }
 }
 
@@ -92,13 +92,6 @@ impl DesktopHandler {
                     ErrorKind::NotFound(name.to_string_lossy().into())
                 })?)
         }
-    }
-
-    /// Check a a desktop entry exists and if so, return a Desktop Handler
-    pub fn resolve(name: OsString) -> Result<Self> {
-        let path = Self::get_path(&name)?;
-        DesktopEntry::try_from(path)?;
-        Ok(Self(name))
     }
 
     /// Launch a DesktopHandler's desktop entry
