@@ -626,6 +626,78 @@ mod tests {
 
         Ok(())
     }
+
+    fn test_show_handler<W: Write>(
+        writer: &mut W,
+        output_json: bool,
+        terminal_output: bool,
+    ) -> Result<()> {
+        let mut config = Config {
+            terminal_output,
+            ..Default::default()
+        };
+
+        // Use actual desktop file because command may be needed
+        config.add_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::from_str("tests/Helix.desktop")?,
+        )?;
+
+        // May be needed if terminal command is needed
+        config.add_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            &DesktopHandler::from_str("tests/org.wezfurlong.wezterm.desktop")?,
+        )?;
+
+        config.show_handler(
+            writer,
+            &mime::TEXT_PLAIN,
+            output_json,
+            None,
+            false,
+            false,
+        )?;
+
+        Ok(())
+    }
+
+    #[test]
+    // NOTE: result will begin with tests/, which is normal ONLY for tests
+    fn show_handler() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, false, false)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
+    #[test]
+    fn show_handler_json() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, true, false)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
+    #[test]
+    // NOTE: result will begin with tests/, which is normal ONLY for tests
+    fn show_handler_terminal() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, false, true)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+    #[test]
+    fn show_handler_json_terminal() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, true, true)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
     fn test_add_handlers(config: &mut Config) -> Result<()> {
         config.add_handler(
             &Mime::from_str("text/plain")?,
