@@ -129,7 +129,6 @@ impl Config {
 
     /// Set a default application association, overwriting any existing association for the same mimetype
     /// and writes it to mimeapps.list
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn set_handler(
         &mut self,
         mime: &Mime,
@@ -141,7 +140,6 @@ impl Config {
 
     /// Add a handler to an existing default application association
     /// and writes it to mimeapps.list
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn add_handler(
         &mut self,
         mime: &Mime,
@@ -152,7 +150,7 @@ impl Config {
     }
 
     /// Open the given paths with their respective handlers
-    #[mutants::skip] // Cannot test directly, alters system state
+    #[mutants::skip] // Cannot test directly, runs external commands
     pub fn open_paths(
         &self,
         paths: &[UserPath],
@@ -298,7 +296,6 @@ impl Config {
     }
 
     /// Entirely remove a given mime's default application association
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn unset_handler(&mut self, mime: &Mime) -> Result<()> {
         if self.mime_apps.unset_handler(mime).is_some() {
             self.mime_apps.save()?
@@ -308,7 +305,6 @@ impl Config {
     }
 
     /// Remove a given handler from a given mime's default file associaion
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn remove_handler(
         &mut self,
         mime: &Mime,
@@ -403,14 +399,14 @@ mod tests {
     #[test]
     fn wildcard_mimes() -> Result<()> {
         let mut config = Config::default();
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("video/*")?,
             &DesktopHandler::assume_valid("mpv.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("video/webm")?,
             &DesktopHandler::assume_valid("brave.desktop".into()),
-        );
+        )?;
 
         assert_eq!(
             config
@@ -437,14 +433,14 @@ mod tests {
     #[test]
     fn complex_wildcard_mimes() -> Result<()> {
         let mut config = Config::default();
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("application/vnd.oasis.opendocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("application/vnd.openxmlformats-officedocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
+        )?;
 
         assert_eq!(
             config
@@ -482,42 +478,42 @@ mod tests {
         let mut config = Config::default();
 
         // Add arbitrary video handlers
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("video/mp4")?,
             &DesktopHandler::assume_valid("mpv.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("video/asdf")?,
             &DesktopHandler::assume_valid("mpv.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("video/webm")?,
             &DesktopHandler::assume_valid("brave.desktop".into()),
-        );
+        )?;
 
         // Add arbitrary text handlers
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("text/plain")?,
             &DesktopHandler::assume_valid("helix.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("text/plain")?,
             &DesktopHandler::assume_valid("nvim.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("text/plain")?,
             &DesktopHandler::assume_valid("kakoune.desktop".into()),
-        );
+        )?;
 
         // Add arbitrary document handlers
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("application/vnd.oasis.opendocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("application/vnd.openxmlformats-officedocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
+        )?;
 
         // Add arbirtary terminal emulator as an added association
         config
@@ -605,10 +601,10 @@ mod tests {
     fn terminal_command_set() -> Result<()> {
         let mut config = Config::default();
 
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("x-scheme-handler/terminal")?,
             &DesktopHandler::from_str("tests/org.wezfurlong.wezterm.desktop")?,
-        );
+        )?;
 
         assert_eq!(config.terminal("", false)?, "wezterm start --cwd . -e");
 

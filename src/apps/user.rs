@@ -217,14 +217,18 @@ impl MimeApps {
     /// Save associations to mimeapps.list
     #[mutants::skip] // Cannot test directly, alters system state
     pub fn save(&self) -> Result<()> {
-        let mut file = std::fs::OpenOptions::new()
-            .read(true)
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(Self::path()?)?;
+        if cfg!(test) {
+            Ok(())
+        } else {
+            let mut file = std::fs::OpenOptions::new()
+                .read(true)
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(Self::path()?)?;
 
-        self.save_to(&mut file)
+            self.save_to(&mut file)
+        }
     }
 
     /// Serialize MimeApps and write to writer
