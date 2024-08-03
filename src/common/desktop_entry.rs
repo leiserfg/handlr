@@ -142,7 +142,6 @@ impl DesktopEntry {
 
         // If the entry expects a terminal (emulator), but this process is not running in one, we
         // launch a new one.
-        // TODO: make regression test (currently infeasible with terminal method's reliance on system state)
         if self.terminal && !config.terminal_output {
             let term_cmd = config.terminal(selector, use_selector)?;
             exec = shlex::split(&term_cmd)
@@ -214,6 +213,10 @@ impl TryFrom<PathBuf> for DesktopEntry {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
+    use crate::common::DesktopHandler;
+
     use super::*;
 
     #[test]
@@ -276,6 +279,39 @@ mod tests {
             DesktopEntry::try_from(PathBuf::from("tests/empty_exec.desktop"));
 
         assert!(empty_exec.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_application_command() -> Result<()> {
+        let mut config = Config::default();
+
+        config.terminal_output = false;
+
+        config.add_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            &DesktopHandler::assume_valid(
+                "tests/org.wezfurlong.wezterm.desktop".into(),
+            ),
+        )?;
+
+        let entry =
+            DesktopEntry::try_from(PathBuf::from("tests/Helix.desktop"))?;
+
+        let command =
+            entry.get_cmd(&config, vec!["test.txt".to_string()], "", false)?;
+
+        assert_eq!(
+            command,
+            (
+                "wezterm".to_string(),
+                ["start", "--cwd", ".", "-e", "hx", "test.txt"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            )
+        );
 
         Ok(())
     }
