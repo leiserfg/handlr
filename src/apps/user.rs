@@ -279,12 +279,18 @@ fn select<O: Iterator<Item = String>>(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use std::fs::File;
+    use std::{fs::File, str::FromStr};
 
     // Helper function to test serializing and deserializing mimeapps.list files
-    fn mimeapps_round_trip(path: &str) -> Result<()> {
-        let file = File::open(path)?;
-        let mime_apps = MimeApps::read_from(file)?;
+    fn mimeapps_round_trip(
+        input_path: &str,
+        expected_path: &str,
+        mutation: fn(&mut MimeApps) -> Result<()>,
+    ) -> Result<()> {
+        let file = File::open(input_path)?;
+        let mut mime_apps = MimeApps::read_from(file)?;
+
+        mutation(&mut mime_apps)?;
 
         let mut buffer = Vec::new();
         mime_apps.save_to(&mut buffer)?;
@@ -292,24 +298,96 @@ mod tests {
         assert_eq!(
             String::from_utf8(buffer)?,
             // Unfortunately, serde_ini outputs \r\n line endings
-            std::fs::read_to_string(path)?.replace('\n', "\r\n")
+            std::fs::read_to_string(expected_path)?.replace('\n', "\r\n")
+        );
+
+        Ok(())
+    }
+
+    // Helper function that does nothing
+    fn noop(_: &mut MimeApps) -> Result<()> {
+        Ok(())
+    }
+
+    // Helper function to reduce duplicate code for the most common case
+    fn mimeapps_round_trip_simple(path: &str) -> Result<()> {
+        mimeapps_round_trip(path, path, noop)
+    }
+
+    #[test]
+    fn mimeapps_no_added_round_trip() -> Result<()> {
+        mimeapps_round_trip_simple("./tests/mimeapps_no_added.list")
+    }
+
+    #[test]
+    fn mimeapps_no_default_round_trip() -> Result<()> {
+        mimeapps_round_trip_simple("./tests/mimeapps_no_default.list")
+    }
+
+    #[test]
+    fn mimeapps_sorted_round_trip() -> Result<()> {
+        mimeapps_round_trip_simple("./tests/mimeapps_sorted.list")
+    }
+
+    #[test]
+    fn mimeapps_anomalous_semicolons_round_trip() -> Result<()> {
+        mimeapps_round_trip(
+            "./tests/mimeapps_anomalous_semicolons.list",
+            "./tests/mimeapps_sorted.list",
+            noop,
+        )
+    }
+
+    #[test]
+    fn mimeapps_empty_entry_round_trip() -> Result<()> {
+        mimeapps_round_trip(
+            "./tests/mimeapps_empty_entry.list",
+            "./tests/mimeapps_no_added.list",
+            noop,
+        )
+    }
+
+    #[test]
+    fn mimeapps_empty_entry_fallback() -> Result<()> {
+        let file = File::open("./tests/mimeapps_empty_entry.list")?;
+        let mime_apps = MimeApps::read_from(file)?;
+
+        assert_eq!(
+            mime_apps
+                .get_handler_from_user(&mime::TEXT_PLAIN, "", false)?
+                .to_string(),
+            "nvim.desktop"
         );
 
         Ok(())
     }
 
     #[test]
-    fn mimeapps_no_added_round_trip() -> Result<()> {
-        mimeapps_round_trip("./tests/mimeapps_no_added.list")
+    // This is mainly to check that "empty" entries don't get mixed in and complicate things
+    fn mimeapps_round_trip_with_deletion_and_re_addition() -> Result<()> {
+        let remove_and_re_add = |mime_apps: &mut MimeApps| {
+            mime_apps.remove_handler(
+                &mime::TEXT_HTML,
+                &DesktopHandler::from_str("nvim.desktop")?,
+            );
+            mime_apps.add_handler(
+                &mime::TEXT_HTML,
+                &DesktopHandler::from_str("nvim.desktop")?,
+            );
+            Ok(())
+        };
+
+        let path = "./tests/mimeapps_sorted.list";
+
+        mimeapps_round_trip(path, path, remove_and_re_add)
     }
 
     #[test]
-    fn mimeapps_no_default_round_trip() -> Result<()> {
-        mimeapps_round_trip("./tests/mimeapps_no_default.list")
-    }
-
-    #[test]
-    fn mimeapps_sorted_round_trip() -> Result<()> {
-        mimeapps_round_trip("./tests/mimeapps_sorted.list")
+    fn mimeapps_duplicate_round_trip() -> Result<()> {
+        mimeapps_round_trip(
+            "./tests/mimeapps_duplicate.list",
+            "./tests/mimeapps_no_added.list",
+            noop,
+        )
     }
 }
