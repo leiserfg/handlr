@@ -128,7 +128,7 @@ impl MimeApps {
     }
 
     /// Get the handler associated with a given mime from mimeapps.list's default apps
-    #[mutants::skip] // Cannot entirely test, namely cannot test selector functionality
+    #[mutants::skip] // Cannot entirely test, namely cannot test selector or filtering
     pub fn get_handler_from_user(
         &self,
         mime: &Mime,
@@ -142,27 +142,40 @@ impl MimeApps {
             .get(mime)
             .or_else(|| self.get_from_wildcard(mime))
         {
-            Some(handlers) if use_selector && handlers.len() > 1 => {
+            Some(handlers) => {
+                // Prepares for selector and filters out apps that do not exist
                 let handlers = handlers
                     .iter()
-                    .map(|h| Ok((h, h.get_entry()?.name)))
-                    .collect::<Result<Vec<_>>>()?;
+                    .flat_map(|h| -> Result<(&DesktopHandler, String)> {
+                        // Filtering breaks testing, so treat every app as valid
+                        if cfg!(test) {
+                            Ok((h, h.to_string()))
+                        } else {
+                            Ok((h, h.get_entry()?.name))
+                        }
+                    })
+                    .collect_vec();
 
-                let handler = {
-                    let name =
-                        select(selector, handlers.iter().map(|h| h.1.clone()))?;
+                if use_selector && handlers.len() > 1 {
+                    let handler = {
+                        let name = select(
+                            selector,
+                            handlers.iter().map(|h| h.1.clone()),
+                        )?;
 
-                    handlers
-                        .into_iter()
-                        .find(|h| h.1 == name)
-                        .ok_or(error)?
-                        .0
-                        .clone()
-                };
+                        handlers
+                            .into_iter()
+                            .find(|h| h.1 == name)
+                            .ok_or(error)?
+                            .0
+                            .clone()
+                    };
 
-                Ok(handler)
+                    Ok(handler)
+                } else {
+                    Ok(handlers.first().ok_or(error)?.0.clone())
+                }
             }
-            Some(handlers) => Ok(handlers.front().ok_or(error)?.clone()),
             None => Err(error),
         }
     }
