@@ -67,12 +67,19 @@ Unfortunately, there isn't an XDG spec and thus a standardized way for `handlr` 
 
 Now if `x-scheme-handler/terminal` is present, `handlr` will use it. 
 
-Otherwise, `handlr` will:
-1. Find an app with `TerminalEmulator` category
-2. Set it as the default for `x-scheme-handler/terminal`
-3. Send you a notification to let you know it guessed your terminal and provide instructions to change it if necessary
+Otherwise, `handlr` will find an app with `TerminalEmulator` category and use it instead.
 
 On the upside, `Terminal=true` entries will now work outside of interactive terminals, unlike `xdg-utils`.
+
+> [!NOTE]
+> For `handlr-regex` v0.11.2 and older, when `x-scheme-handler/terminal` is not present, this process is used instead:
+>
+> 1. Find an app with `TerminalEmulator` category
+> 2. Set it as the default for `x-scheme-handler/terminal`
+> 3. Send you a notification to let you know it guessed your terminal and provide instructions to change it if necessary
+>
+> This was changed in order to match how other mimetypes are handled and also so that `mimeapps.list` is not edited without the user's permission.
+
 
 ### Terminal emulator compatibility
 `handlr` should work with pretty much any terminal emulator.
