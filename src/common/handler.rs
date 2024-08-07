@@ -3,17 +3,11 @@ use crate::{
     config::Config,
     error::{Error, ErrorKind, Result},
 };
-use derive_more::Deref;
 use enum_dispatch::enum_dispatch;
 use regex::RegexSet;
 use serde::{Deserialize, Serialize};
 use std::{
-    convert::TryFrom,
-    ffi::OsString,
-    fmt::Display,
-    hash::{Hash, Hasher},
-    path::PathBuf,
-    str::FromStr,
+    convert::TryFrom, ffi::OsString, fmt::Display, path::PathBuf, str::FromStr,
 };
 
 /// Represents a program or command that is used to open a file
@@ -33,7 +27,7 @@ pub trait Handleable {
     #[mutants::skip] // Cannot test directly, runs commands
     fn open(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         enable_selector: bool,
@@ -63,12 +57,11 @@ impl Display for DesktopHandler {
 impl FromStr for DesktopHandler {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        DesktopHandler::resolve(s.into())
+        Ok(DesktopHandler(s.into()))
     }
 }
 
 impl Handleable for DesktopHandler {
-    #[mutants::skip] // Cannot test directly, depends on system state
     fn get_entry(&self) -> Result<DesktopEntry> {
         DesktopEntry::try_from(Self::get_path(&self.0)?)
     }
@@ -81,29 +74,25 @@ impl DesktopHandler {
     }
 
     /// Get the path of a given desktop entry file
-    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn get_path(name: &std::ffi::OsStr) -> Result<PathBuf> {
-        let mut path = PathBuf::from("applications");
-        path.push(name);
-        Ok(xdg::BaseDirectories::new()?
-            .find_data_file(path)
-            .ok_or_else(|| {
-                ErrorKind::NotFound(name.to_string_lossy().into())
-            })?)
-    }
-
-    /// Check a a desktop entry exists and if so, return a Desktop Handler
-    pub fn resolve(name: OsString) -> Result<Self> {
-        let path = Self::get_path(&name)?;
-        DesktopEntry::try_from(path)?;
-        Ok(Self(name))
+        if cfg!(test) {
+            Ok(PathBuf::from(name))
+        } else {
+            let mut path = PathBuf::from("applications");
+            path.push(name);
+            Ok(xdg::BaseDirectories::new()?
+                .find_data_file(path)
+                .ok_or_else(|| {
+                    ErrorKind::NotFound(name.to_string_lossy().into())
+                })?)
+        }
     }
 
     /// Launch a DesktopHandler's desktop entry
     #[mutants::skip] // Cannot test directly, runs command
     pub fn launch(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         enable_selector: bool,
@@ -119,12 +108,13 @@ impl DesktopHandler {
 }
 
 /// Represents a regex handler from the config
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RegexHandler {
     exec: String,
     #[serde(default)]
     terminal: bool,
-    regexes: HandlerRegexSet,
+    #[serde(with = "serde_regex")]
+    regexes: RegexSet,
 }
 
 impl RegexHandler {
@@ -137,27 +127,6 @@ impl RegexHandler {
 impl Handleable for RegexHandler {
     fn get_entry(&self) -> Result<DesktopEntry> {
         Ok(DesktopEntry::fake_entry(&self.exec, self.terminal))
-    }
-}
-
-// Wrapping RegexSet in a struct and implementing Eq and Hash for it
-// saves us from having to implement them for RegexHandler as a whole.
-#[derive(Debug, Clone, Deserialize, Deref)]
-struct HandlerRegexSet(#[serde(with = "serde_regex")] RegexSet);
-
-impl PartialEq for HandlerRegexSet {
-    #[mutants::skip] // Trivial
-    fn eq(&self, other: &Self) -> bool {
-        self.patterns() == other.patterns()
-    }
-}
-
-impl Eq for HandlerRegexSet {}
-
-impl Hash for HandlerRegexSet {
-    #[mutants::skip] // Trivial
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.patterns().hash(state);
     }
 }
 
@@ -192,7 +161,7 @@ mod tests {
         let regex_handler = RegexHandler {
             exec: String::from(exec),
             terminal: false,
-            regexes: HandlerRegexSet(RegexSet::new(regexes)?),
+            regexes: RegexSet::new(regexes)?,
         };
 
         let regex_apps = RegexApps(vec![regex_handler.clone()]);

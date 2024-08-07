@@ -1,2 +1,3 @@
 [Default Applications]
 text/*=nvim.desktop;Helix.desktop;
+text/plain=

@@ -1,0 +1,1 @@
+{"cmd":"wezterm start --cwd . -e hx","handler":"tests/Helix.desktop","name":"Helix"}

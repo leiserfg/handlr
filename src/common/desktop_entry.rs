@@ -48,7 +48,7 @@ impl DesktopEntry {
     #[mutants::skip] // Cannot test directly, runs external command
     pub fn exec(
         &self,
-        config: &mut Config,
+        config: &Config,
         mode: Mode,
         arguments: Vec<String>,
         selector: &str,
@@ -73,7 +73,7 @@ impl DesktopEntry {
     #[mutants::skip] // Cannot test directly, runs command
     fn exec_inner(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         use_selector: bool,
@@ -96,10 +96,9 @@ impl DesktopEntry {
     }
 
     /// Get the `exec` command, formatted with given arguments
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn get_cmd(
         &self,
-        config: &mut Config,
+        config: &Config,
         args: Vec<String>,
         selector: &str,
         use_selector: bool,
@@ -143,7 +142,6 @@ impl DesktopEntry {
 
         // If the entry expects a terminal (emulator), but this process is not running in one, we
         // launch a new one.
-        // TODO: make regression test (currently infeasible with terminal method's reliance on system state)
         if self.terminal && !config.terminal_output {
             let term_cmd = config.terminal(selector, use_selector)?;
             exec = shlex::split(&term_cmd)
@@ -215,6 +213,10 @@ impl TryFrom<PathBuf> for DesktopEntry {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
+    use crate::common::DesktopHandler;
+
     use super::*;
 
     #[test]
@@ -226,9 +228,9 @@ mod tests {
         assert_eq!(entry.mime_type[0].essence_str(), "audio/mp3");
         assert_eq!(entry.mime_type[1].essence_str(), "audio/ogg");
 
-        let mut config = Config::default();
+        let config = Config::default();
         let args = vec!["test".to_string()];
-        assert_eq!(entry.get_cmd(&mut config, args, "", false)?,
+        assert_eq!(entry.get_cmd(& config, args, "", false)?,
             (
                 "bash".to_string(),
                 [
@@ -249,10 +251,10 @@ mod tests {
         ))?;
         assert!(entry.mime_type.is_empty());
 
-        let mut config = Config::default();
+        let config = Config::default();
         let args = vec!["test".to_string()];
         assert_eq!(
-            entry.get_cmd(&mut config, args, "", false)?,
+            entry.get_cmd(&config, args, "", false)?,
             (
                 "wezterm".to_string(),
                 ["start", "--cwd", ".", "test"]
@@ -277,6 +279,39 @@ mod tests {
             DesktopEntry::try_from(PathBuf::from("tests/empty_exec.desktop"));
 
         assert!(empty_exec.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_application_command() -> Result<()> {
+        let mut config = Config::default();
+
+        config.terminal_output = false;
+
+        config.add_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            &DesktopHandler::assume_valid(
+                "tests/org.wezfurlong.wezterm.desktop".into(),
+            ),
+        )?;
+
+        let entry =
+            DesktopEntry::try_from(PathBuf::from("tests/Helix.desktop"))?;
+
+        let command =
+            entry.get_cmd(&config, vec!["test.txt".to_string()], "", false)?;
+
+        assert_eq!(
+            command,
+            (
+                "wezterm".to_string(),
+                ["start", "--cwd", ".", "-e", "hx", "test.txt"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            )
+        );
 
         Ok(())
     }

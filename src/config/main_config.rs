@@ -16,7 +16,7 @@ use crate::{
 
 /// A single struct that holds all apps and config.
 /// Used to streamline explicitly passing state.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Config {
     /// User-configured associations
     mime_apps: MimeApps,
@@ -73,10 +73,9 @@ impl Config {
     }
 
     /// Given a mime and arguments, launch the associated handler with the arguments
-    /// If a terminal emulator is needed, but not set, one will be chosen and set
     #[mutants::skip] // Cannot test directly, runs external command
     pub fn launch_handler(
-        &mut self,
+        &self,
         mime: &Mime,
         args: Vec<UserPath>,
         selector: Option<String>,
@@ -96,10 +95,8 @@ impl Config {
     }
 
     /// Get the handler associated with a given mime
-    /// If a terminal emulator is needed, but not set, one will be chosen and set
-    #[mutants::skip] // Cannot test directly, depends on system state
     pub fn show_handler<W: Write>(
-        &mut self,
+        &self,
         writer: &mut W,
         mime: &Mime,
         output_json: bool,
@@ -132,7 +129,6 @@ impl Config {
 
     /// Set a default application association, overwriting any existing association for the same mimetype
     /// and writes it to mimeapps.list
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn set_handler(
         &mut self,
         mime: &Mime,
@@ -144,7 +140,6 @@ impl Config {
 
     /// Add a handler to an existing default application association
     /// and writes it to mimeapps.list
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn add_handler(
         &mut self,
         mime: &Mime,
@@ -155,10 +150,9 @@ impl Config {
     }
 
     /// Open the given paths with their respective handlers
-    /// If a terminal emulator is needed, but not set, one will be chosen and set
-    #[mutants::skip] // Cannot test directly, alters system state
+    #[mutants::skip] // Cannot test directly, runs external commands
     pub fn open_paths(
-        &mut self,
+        &self,
         paths: &[UserPath],
         selector: Option<String>,
         enable_selector: bool,
@@ -204,57 +198,34 @@ impl Config {
     }
 
     /// Get the command for the x-scheme-handler/terminal handler if one is set.
-    /// Otherwise, finds a terminal emulator program, sets it as the handler, and makes a notification.
-    #[mutants::skip] // Cannot test directly, alters system state
+    /// Otherwise, finds a terminal emulator program and uses it.
+    // TODO: test falling back to system
     pub fn terminal(
-        &mut self,
+        &self,
         selector: &str,
         use_selector: bool,
     ) -> Result<String> {
-        let terminal_entry = self
-            .get_handler(
-                &Mime::from_str("x-scheme-handler/terminal")?,
-                selector,
-                use_selector,
-            )
-            .ok()
-            .and_then(|h| h.get_entry().ok());
+        // Get the terminal handler if there is one set
+        self.get_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            selector,
+            use_selector,
+        )
+        .ok()
+        .and_then(|h| h.get_entry().ok())
+        // Otherwise, get a terminal emulator program
+        .or_else(|| self.system_apps.terminal_emulator())
+        .map(|e| {
+            let mut exec = e.exec.to_owned();
 
-        terminal_entry
-            .or_else(|| {
-                let entry = SystemApps::get_entries()
-                    .ok()?
-                    .find(|(_handler, entry)| {
-                        entry.is_terminal_emulator()
-                    })?;
+            if let Some(opts) = &self.config.term_exec_args {
+                exec.push(' ');
+                exec.push_str(opts)
+            }
 
-                crate::utils::notify(
-                    "handlr",
-                    &format!(
-                        "Guessed terminal emulator: {}.\n\nIf this is wrong, use `handlr set x-scheme-handler/terminal` to update it.",
-                        entry.0.to_string_lossy()
-                    )
-                ).ok()?;
-
-                self.mime_apps.set_handler(
-                    &Mime::from_str("x-scheme-handler/terminal").ok()?,
-                    &DesktopHandler::assume_valid(entry.0),
-                );
-                self.mime_apps.save().ok()?;
-
-                Some(entry.1)
-            })
-            .map(|e| {
-                let mut exec = e.exec.to_owned();
-
-                if let Some(opts) = &self.config.term_exec_args {
-                    exec.push(' ');
-                    exec.push_str(opts)
-                }
-
-                exec
-            })
-            .ok_or(Error::from(ErrorKind::NoTerminal))
+            exec
+        })
+        .ok_or_else(|| Error::from(ErrorKind::NoTerminal))
     }
 
     /// Print the set associations and system-level associations in a table
@@ -325,7 +296,6 @@ impl Config {
     }
 
     /// Entirely remove a given mime's default application association
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn unset_handler(&mut self, mime: &Mime) -> Result<()> {
         if self.mime_apps.unset_handler(mime).is_some() {
             self.mime_apps.save()?
@@ -335,7 +305,6 @@ impl Config {
     }
 
     /// Remove a given handler from a given mime's default file associaion
-    #[mutants::skip] // Cannot test directly, alters system state
     pub fn remove_handler(
         &mut self,
         mime: &Mime,
@@ -418,7 +387,7 @@ impl MimeAppsTable {
         Self {
             added_associations: to_entries(&mimeapps.added_associations),
             default_apps: to_entries(&mimeapps.default_apps),
-            system_apps: to_entries(system_apps),
+            system_apps: to_entries(&system_apps.associations),
         }
     }
 }
@@ -426,18 +395,19 @@ impl MimeAppsTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn wildcard_mimes() -> Result<()> {
         let mut config = Config::default();
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("video/*")?,
             &DesktopHandler::assume_valid("mpv.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("video/webm")?,
             &DesktopHandler::assume_valid("brave.desktop".into()),
-        );
+        )?;
 
         assert_eq!(
             config
@@ -464,14 +434,14 @@ mod tests {
     #[test]
     fn complex_wildcard_mimes() -> Result<()> {
         let mut config = Config::default();
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("application/vnd.oasis.opendocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("application/vnd.openxmlformats-officedocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
+        )?;
 
         assert_eq!(
             config
@@ -509,42 +479,42 @@ mod tests {
         let mut config = Config::default();
 
         // Add arbitrary video handlers
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("video/mp4")?,
             &DesktopHandler::assume_valid("mpv.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("video/asdf")?,
             &DesktopHandler::assume_valid("mpv.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("video/webm")?,
             &DesktopHandler::assume_valid("brave.desktop".into()),
-        );
+        )?;
 
         // Add arbitrary text handlers
-        config.mime_apps.add_handler(
-            &Mime::from_str("text/plain")?,
+        config.add_handler(
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("helix.desktop".into()),
-        );
-        config.mime_apps.add_handler(
-            &Mime::from_str("text/plain")?,
+        )?;
+        config.add_handler(
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("nvim.desktop".into()),
-        );
-        config.mime_apps.add_handler(
-            &Mime::from_str("text/plain")?,
+        )?;
+        config.add_handler(
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("kakoune.desktop".into()),
-        );
+        )?;
 
         // Add arbitrary document handlers
-        config.mime_apps.add_handler(
+        config.add_handler(
             &Mime::from_str("application/vnd.oasis.opendocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
-        config.mime_apps.add_handler(
+        )?;
+        config.add_handler(
             &Mime::from_str("application/vnd.openxmlformats-officedocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
-        );
+        )?;
 
         // Add arbirtary terminal emulator as an added association
         config
@@ -624,6 +594,239 @@ mod tests {
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, true, true, false)?;
         goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_command_set() -> Result<()> {
+        let mut config = Config::default();
+
+        config.add_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            &DesktopHandler::from_str("tests/org.wezfurlong.wezterm.desktop")?,
+        )?;
+
+        assert_eq!(config.terminal("", false)?, "wezterm start --cwd . -e");
+
+        Ok(())
+    }
+
+    #[test]
+    fn terminal_command_fallback() -> Result<()> {
+        let mut config = Config::default();
+
+        config
+            .system_apps
+            .add_unassociated(DesktopHandler::from_str(
+                "tests/org.wezfurlong.wezterm.desktop",
+            )?);
+
+        assert_eq!(config.terminal("", false)?, "wezterm start --cwd . -e");
+
+        Ok(())
+    }
+
+    fn test_show_handler<W: Write>(
+        writer: &mut W,
+        output_json: bool,
+        terminal_output: bool,
+    ) -> Result<()> {
+        let mut config = Config {
+            terminal_output,
+            ..Default::default()
+        };
+
+        // Use actual desktop file because command may be needed
+        config.add_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::from_str("tests/Helix.desktop")?,
+        )?;
+
+        // May be needed if terminal command is needed
+        config.add_handler(
+            &Mime::from_str("x-scheme-handler/terminal")?,
+            &DesktopHandler::from_str("tests/org.wezfurlong.wezterm.desktop")?,
+        )?;
+
+        config.show_handler(
+            writer,
+            &mime::TEXT_PLAIN,
+            output_json,
+            None,
+            false,
+            false,
+        )?;
+
+        Ok(())
+    }
+
+    #[test]
+    // NOTE: result will begin with tests/, which is normal ONLY for tests
+    fn show_handler() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, false, false)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
+    #[test]
+    fn show_handler_json() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, true, false)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
+    #[test]
+    // NOTE: result will begin with tests/, which is normal ONLY for tests
+    fn show_handler_terminal() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, false, true)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+    #[test]
+    fn show_handler_json_terminal() -> Result<()> {
+        let mut buffer = Vec::new();
+        test_show_handler(&mut buffer, true, true)?;
+        println!("{}", String::from_utf8(buffer.clone())?);
+        goldie::assert!(String::from_utf8(buffer)?);
+        Ok(())
+    }
+
+    fn test_add_handlers(config: &mut Config) -> Result<()> {
+        config.add_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        )?;
+
+        // Should return first added handler
+        assert_eq!(
+            config
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
+                .to_string(),
+            "Helix.desktop"
+        );
+
+        config.add_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+        )?;
+
+        // Should still return first added handler
+        assert_eq!(
+            config
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
+                .to_string(),
+            "Helix.desktop"
+        );
+
+        Ok(())
+    }
+
+    fn test_remove_handlers(config: &mut Config) -> Result<()> {
+        config.remove_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        )?;
+
+        // With first added handler removed, second handler replaces it
+        assert_eq!(
+            config
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
+                .to_string(),
+            "nvim.desktop"
+        );
+
+        config.remove_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+        )?;
+
+        // Both handlers removed, should not be any left
+        assert!(config.get_handler(&mime::TEXT_PLAIN, "", false).is_err());
+
+        Ok(())
+    }
+
+    fn test_set_handlers(config: &mut Config) -> Result<()> {
+        config.set_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        )?;
+
+        assert_eq!(
+            config
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
+                .to_string(),
+            "Helix.desktop"
+        );
+
+        config.set_handler(
+            &mime::TEXT_PLAIN,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+        )?;
+
+        // Should return second set handler because it should replace the first one
+        assert_eq!(
+            config
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
+                .to_string(),
+            "nvim.desktop"
+        );
+
+        Ok(())
+    }
+
+    fn test_unset_handlers(config: &mut Config) -> Result<()> {
+        config.unset_handler(&mime::TEXT_PLAIN)?;
+
+        // Handler completely unset, should not be any left
+        assert!(config.get_handler(&mime::TEXT_PLAIN, "", false).is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_and_remove_handlers() -> Result<()> {
+        let mut config = Config::default();
+
+        test_add_handlers(&mut config)?;
+        test_remove_handlers(&mut config)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_and_unset_handlers() -> Result<()> {
+        let mut config = Config::default();
+
+        test_set_handlers(&mut config)?;
+        test_unset_handlers(&mut config)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_and_unset_handlers() -> Result<()> {
+        let mut config = Config::default();
+
+        test_add_handlers(&mut config)?;
+        test_unset_handlers(&mut config)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_and_remove_handlers() -> Result<()> {
+        let mut config = Config::default();
+
+        test_set_handlers(&mut config)?;
+        test_remove_handlers(&mut config)?;
 
         Ok(())
     }

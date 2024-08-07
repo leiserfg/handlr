@@ -17,46 +17,6 @@ use std::{
     str::FromStr,
 };
 
-/// Helper struct for a list of `DesktopHandler`s
-#[serde_as]
-#[derive(
-    Debug,
-    Default,
-    Clone,
-    Deref,
-    DerefMut,
-    SerializeDisplay,
-    DeserializeFromStr,
-    PartialEq,
-    Eq,
-)]
-pub struct DesktopList(VecDeque<DesktopHandler>);
-
-impl FromStr for DesktopList {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Kludge to help with testing this and things that rely on this
-        // Otherwise, this would depend on system state
-        fn filter(s: &str) -> Option<DesktopHandler> {
-            #[cfg(not(test))]
-            let result = DesktopHandler::from_str(s).ok();
-            #[cfg(test)]
-            let result = Some(DesktopHandler::assume_valid(s.into()));
-
-            result
-        }
-
-        Ok(Self(
-            s.split(';')
-                .filter(|s| !s.is_empty()) // Account for ending semicolon
-                .unique()
-                .filter_map(filter)
-                .collect::<VecDeque<DesktopHandler>>(),
-        ))
-    }
-}
-
 /// Represents user-configured mimeapps.list file
 #[serde_as]
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -73,9 +33,36 @@ pub struct MimeApps {
     pub default_apps: BTreeMap<Mime, DesktopList>,
 }
 
+/// Helper struct for a list of `DesktopHandler`s
+#[serde_as]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Deref,
+    DerefMut,
+    SerializeDisplay,
+    DeserializeFromStr,
+    PartialEq,
+)]
+pub struct DesktopList(VecDeque<DesktopHandler>);
+
+impl FromStr for DesktopList {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(
+            s.split(';')
+                .filter(|s| !s.is_empty()) // Account for ending/duplicated semicolons
+                .unique() // Remove duplicate entries
+                .map(DesktopHandler::from_str)
+                .collect::<Result<_>>()?,
+        ))
+    }
+}
+
 impl Display for DesktopList {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Ensure final semicolon is added
         write!(f, "{};", self.iter().join(";"))
     }
 }
@@ -141,7 +128,7 @@ impl MimeApps {
     }
 
     /// Get the handler associated with a given mime from mimeapps.list's default apps
-    #[mutants::skip] // Cannot entirely test, namely cannot test selector functionality
+    #[mutants::skip] // Cannot entirely test, namely cannot test selector or filtering
     pub fn get_handler_from_user(
         &self,
         mime: &Mime,
@@ -155,27 +142,40 @@ impl MimeApps {
             .get(mime)
             .or_else(|| self.get_from_wildcard(mime))
         {
-            Some(handlers) if use_selector && handlers.len() > 1 => {
+            Some(handlers) => {
+                // Prepares for selector and filters out apps that do not exist
                 let handlers = handlers
                     .iter()
-                    .map(|h| Ok((h, h.get_entry()?.name)))
-                    .collect::<Result<Vec<_>>>()?;
+                    .flat_map(|h| -> Result<(&DesktopHandler, String)> {
+                        // Filtering breaks testing, so treat every app as valid
+                        if cfg!(test) {
+                            Ok((h, h.to_string()))
+                        } else {
+                            Ok((h, h.get_entry()?.name))
+                        }
+                    })
+                    .collect_vec();
 
-                let handler = {
-                    let name =
-                        select(selector, handlers.iter().map(|h| h.1.clone()))?;
+                if use_selector && handlers.len() > 1 {
+                    let handler = {
+                        let name = select(
+                            selector,
+                            handlers.iter().map(|h| h.1.clone()),
+                        )?;
 
-                    handlers
-                        .into_iter()
-                        .find(|h| h.1 == name)
-                        .ok_or(error)?
-                        .0
-                        .clone()
-                };
+                        handlers
+                            .into_iter()
+                            .find(|h| h.1 == name)
+                            .ok_or(error)?
+                            .0
+                            .clone()
+                    };
 
-                Ok(handler)
+                    Ok(handler)
+                } else {
+                    Ok(handlers.first().ok_or(error)?.0.clone())
+                }
             }
-            Some(handlers) => Ok(handlers.front().ok_or(error)?.clone()),
             None => Err(error),
         }
     }
@@ -205,31 +205,38 @@ impl MimeApps {
     /// Deserialize MimeApps from reader
     /// Makes testing easier
     fn read_from<R: Read>(reader: R) -> Result<Self> {
-        let mut mimeapps: Self = serde_ini::de::from_read(reader)?;
+        let mut mime_apps: MimeApps = serde_ini::de::from_read(reader)?;
 
-        // Remove empty default associations
-        // Can happen if all handlers set are invalid (e.g. do not exist)
-        mimeapps.default_apps.retain(|_, h| !h.is_empty());
+        // Remove empty entries
+        mime_apps
+            .default_apps
+            .retain(|_, handlers| !handlers.is_empty());
 
-        Ok(mimeapps)
+        Ok(mime_apps)
     }
 
     /// Save associations to mimeapps.list
     #[mutants::skip] // Cannot test directly, alters system state
-    pub fn save(&self) -> Result<()> {
-        let mut file = std::fs::OpenOptions::new()
-            .read(true)
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(Self::path()?)?;
+    pub fn save(&mut self) -> Result<()> {
+        if cfg!(test) {
+            Ok(())
+        } else {
+            let mut file = std::fs::OpenOptions::new()
+                .read(true)
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(Self::path()?)?;
 
-        self.save_to(&mut file)
+            self.save_to(&mut file)
+        }
     }
 
     /// Serialize MimeApps and write to writer
     /// Makes testing easier
-    fn save_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn save_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
+        // Remove empty entries
+        self.default_apps.retain(|_, handlers| !handlers.is_empty());
         serde_ini::ser::to_writer(writer, self)?;
         Ok(())
     }
@@ -285,187 +292,18 @@ fn select<O: Iterator<Item = String>>(
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use std::fs::File;
-
-    fn test_add_handlers(mime_apps: &mut MimeApps) -> Result<()> {
-        mime_apps.add_handler(
-            &Mime::from_str("text/plain")?,
-            &DesktopHandler::assume_valid("Helix.desktop".into()),
-        );
-
-        // Should return first added handler
-        assert_eq!(
-            mime_apps
-                .get_handler_from_user(
-                    &Mime::from_str("text/plain")?,
-                    "",
-                    false,
-                )?
-                .to_string(),
-            "Helix.desktop"
-        );
-
-        mime_apps.add_handler(
-            &Mime::from_str("text/plain")?,
-            &DesktopHandler::assume_valid("nvim.desktop".into()),
-        );
-
-        // Should still return first added handler
-        assert_eq!(
-            mime_apps
-                .get_handler_from_user(
-                    &Mime::from_str("text/plain")?,
-                    "",
-                    false,
-                )?
-                .to_string(),
-            "Helix.desktop"
-        );
-
-        Ok(())
-    }
-
-    fn test_remove_handlers(mime_apps: &mut MimeApps) -> Result<()> {
-        mime_apps.remove_handler(
-            &Mime::from_str("text/plain")?,
-            &DesktopHandler::assume_valid("Helix.desktop".into()),
-        );
-
-        // With first added handler removed, second handler replaces it
-        assert_eq!(
-            mime_apps
-                .get_handler_from_user(
-                    &Mime::from_str("text/plain")?,
-                    "",
-                    false,
-                )?
-                .to_string(),
-            "nvim.desktop"
-        );
-
-        mime_apps.remove_handler(
-            &Mime::from_str("text/plain")?,
-            &DesktopHandler::assume_valid("nvim.desktop".into()),
-        );
-
-        // Both handlers removed, should not be any left
-        assert!(mime_apps
-            .get_handler_from_user(&Mime::from_str("text/plain")?, "", false)
-            .is_err());
-
-        Ok(())
-    }
-
-    fn test_set_handlers(mime_apps: &mut MimeApps) -> Result<()> {
-        mime_apps.set_handler(
-            &Mime::from_str("text/plain")?,
-            &DesktopHandler::assume_valid("Helix.desktop".into()),
-        );
-
-        assert_eq!(
-            mime_apps
-                .get_handler_from_user(
-                    &Mime::from_str("text/plain")?,
-                    "",
-                    false,
-                )?
-                .to_string(),
-            "Helix.desktop"
-        );
-
-        mime_apps.set_handler(
-            &Mime::from_str("text/plain")?,
-            &DesktopHandler::assume_valid("nvim.desktop".into()),
-        );
-
-        // Should return second set handler because it should replace the first one
-        assert_eq!(
-            mime_apps
-                .get_handler_from_user(
-                    &Mime::from_str("text/plain")?,
-                    "",
-                    false,
-                )?
-                .to_string(),
-            "nvim.desktop"
-        );
-
-        Ok(())
-    }
-
-    fn test_unset_handlers(mime_apps: &mut MimeApps) -> Result<()> {
-        mime_apps.unset_handler(&Mime::from_str("text/plain")?);
-
-        // Handler completely unset, should not be any left
-        assert!(mime_apps
-            .get_handler_from_user(&Mime::from_str("text/plain")?, "", false)
-            .is_err());
-
-        Ok(())
-    }
-
-    #[test]
-    fn add_and_remove_handlers() -> Result<()> {
-        let mut mime_apps = MimeApps::default();
-
-        test_add_handlers(&mut mime_apps)?;
-        test_remove_handlers(&mut mime_apps)?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn set_and_unset_handlers() -> Result<()> {
-        let mut mime_apps = MimeApps::default();
-
-        test_set_handlers(&mut mime_apps)?;
-        test_unset_handlers(&mut mime_apps)?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn add_and_unset_handlers() -> Result<()> {
-        let mut mime_apps = MimeApps::default();
-
-        test_add_handlers(&mut mime_apps)?;
-        test_unset_handlers(&mut mime_apps)?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn set_and_remove_handlers() -> Result<()> {
-        let mut mime_apps = MimeApps::default();
-
-        test_set_handlers(&mut mime_apps)?;
-        test_remove_handlers(&mut mime_apps)?;
-
-        Ok(())
-    }
-
-    #[test]
-    // Meant to test serialization by proxy
-    fn test_desktop_list_display() -> Result<()> {
-        let desktop_list = DesktopList(
-            ["helix.desktop", "nvim.desktop", "kakoune.desktop"]
-                .iter()
-                .map(|h| DesktopHandler::assume_valid(h.into()))
-                .collect(),
-        );
-
-        assert_eq!(
-            format!("{desktop_list}"),
-            "helix.desktop;nvim.desktop;kakoune.desktop;"
-        );
-
-        Ok(())
-    }
+    use std::{fs::File, str::FromStr};
 
     // Helper function to test serializing and deserializing mimeapps.list files
-    fn mimeapps_round_trip(path: &str) -> Result<()> {
-        let file = File::open(path)?;
-        let mime_apps = MimeApps::read_from(file)?;
+    fn mimeapps_round_trip(
+        input_path: &str,
+        expected_path: &str,
+        mutation: fn(&mut MimeApps) -> Result<()>,
+    ) -> Result<()> {
+        let file = File::open(input_path)?;
+        let mut mime_apps = MimeApps::read_from(file)?;
+
+        mutation(&mut mime_apps)?;
 
         let mut buffer = Vec::new();
         mime_apps.save_to(&mut buffer)?;
@@ -473,24 +311,96 @@ mod tests {
         assert_eq!(
             String::from_utf8(buffer)?,
             // Unfortunately, serde_ini outputs \r\n line endings
-            std::fs::read_to_string(path)?.replace('\n', "\r\n")
+            std::fs::read_to_string(expected_path)?.replace('\n', "\r\n")
+        );
+
+        Ok(())
+    }
+
+    // Helper function that does nothing
+    fn noop(_: &mut MimeApps) -> Result<()> {
+        Ok(())
+    }
+
+    // Helper function to reduce duplicate code for the most common case
+    fn mimeapps_round_trip_simple(path: &str) -> Result<()> {
+        mimeapps_round_trip(path, path, noop)
+    }
+
+    #[test]
+    fn mimeapps_no_added_round_trip() -> Result<()> {
+        mimeapps_round_trip_simple("./tests/mimeapps_no_added.list")
+    }
+
+    #[test]
+    fn mimeapps_no_default_round_trip() -> Result<()> {
+        mimeapps_round_trip_simple("./tests/mimeapps_no_default.list")
+    }
+
+    #[test]
+    fn mimeapps_sorted_round_trip() -> Result<()> {
+        mimeapps_round_trip_simple("./tests/mimeapps_sorted.list")
+    }
+
+    #[test]
+    fn mimeapps_anomalous_semicolons_round_trip() -> Result<()> {
+        mimeapps_round_trip(
+            "./tests/mimeapps_anomalous_semicolons.list",
+            "./tests/mimeapps_sorted.list",
+            noop,
+        )
+    }
+
+    #[test]
+    fn mimeapps_empty_entry_round_trip() -> Result<()> {
+        mimeapps_round_trip(
+            "./tests/mimeapps_empty_entry.list",
+            "./tests/mimeapps_no_added.list",
+            noop,
+        )
+    }
+
+    #[test]
+    fn mimeapps_empty_entry_fallback() -> Result<()> {
+        let file = File::open("./tests/mimeapps_empty_entry.list")?;
+        let mime_apps = MimeApps::read_from(file)?;
+
+        assert_eq!(
+            mime_apps
+                .get_handler_from_user(&mime::TEXT_PLAIN, "", false)?
+                .to_string(),
+            "nvim.desktop"
         );
 
         Ok(())
     }
 
     #[test]
-    fn mimeapps_no_added_round_trip() -> Result<()> {
-        mimeapps_round_trip("./tests/mimeapps_no_added.list")
+    // This is mainly to check that "empty" entries don't get mixed in and complicate things
+    fn mimeapps_round_trip_with_deletion_and_re_addition() -> Result<()> {
+        let remove_and_re_add = |mime_apps: &mut MimeApps| {
+            mime_apps.remove_handler(
+                &mime::TEXT_HTML,
+                &DesktopHandler::from_str("nvim.desktop")?,
+            );
+            mime_apps.add_handler(
+                &mime::TEXT_HTML,
+                &DesktopHandler::from_str("nvim.desktop")?,
+            );
+            Ok(())
+        };
+
+        let path = "./tests/mimeapps_sorted.list";
+
+        mimeapps_round_trip(path, path, remove_and_re_add)
     }
 
     #[test]
-    fn mimeapps_no_default_round_trip() -> Result<()> {
-        mimeapps_round_trip("./tests/mimeapps_no_default.list")
-    }
-
-    #[test]
-    fn mimeapps_sorted_round_trip() -> Result<()> {
-        mimeapps_round_trip("./tests/mimeapps_sorted.list")
+    fn mimeapps_duplicate_round_trip() -> Result<()> {
+        mimeapps_round_trip(
+            "./tests/mimeapps_duplicate.list",
+            "./tests/mimeapps_no_added.list",
+            noop,
+        )
     }
 }
