@@ -494,15 +494,15 @@ mod tests {
 
         // Add arbitrary text handlers
         config.add_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("helix.desktop".into()),
         )?;
         config.add_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("nvim.desktop".into()),
         )?;
         config.add_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("kakoune.desktop".into()),
         )?;
 
@@ -700,27 +700,27 @@ mod tests {
 
     fn test_add_handlers(config: &mut Config) -> Result<()> {
         config.add_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("Helix.desktop".into()),
         )?;
 
         // Should return first added handler
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("text/plain")?, "", false,)?
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
                 .to_string(),
             "Helix.desktop"
         );
 
         config.add_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("nvim.desktop".into()),
         )?;
 
         // Should still return first added handler
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("text/plain")?, "", false,)?
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
                 .to_string(),
             "Helix.desktop"
         );
@@ -730,53 +730,51 @@ mod tests {
 
     fn test_remove_handlers(config: &mut Config) -> Result<()> {
         config.remove_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("Helix.desktop".into()),
         )?;
 
         // With first added handler removed, second handler replaces it
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("text/plain")?, "", false,)?
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
                 .to_string(),
             "nvim.desktop"
         );
 
         config.remove_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("nvim.desktop".into()),
         )?;
 
         // Both handlers removed, should not be any left
-        assert!(config
-            .get_handler(&Mime::from_str("text/plain")?, "", false)
-            .is_err());
+        assert!(config.get_handler(&mime::TEXT_PLAIN, "", false).is_err());
 
         Ok(())
     }
 
     fn test_set_handlers(config: &mut Config) -> Result<()> {
         config.set_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("Helix.desktop".into()),
         )?;
 
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("text/plain")?, "", false,)?
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
                 .to_string(),
             "Helix.desktop"
         );
 
         config.set_handler(
-            &Mime::from_str("text/plain")?,
+            &mime::TEXT_PLAIN,
             &DesktopHandler::assume_valid("nvim.desktop".into()),
         )?;
 
         // Should return second set handler because it should replace the first one
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("text/plain")?, "", false,)?
+                .get_handler(&mime::TEXT_PLAIN, "", false,)?
                 .to_string(),
             "nvim.desktop"
         );
@@ -785,12 +783,10 @@ mod tests {
     }
 
     fn test_unset_handlers(config: &mut Config) -> Result<()> {
-        config.unset_handler(&Mime::from_str("text/plain")?)?;
+        config.unset_handler(&mime::TEXT_PLAIN)?;
 
         // Handler completely unset, should not be any left
-        assert!(config
-            .get_handler(&Mime::from_str("text/plain")?, "", false)
-            .is_err());
+        assert!(config.get_handler(&mime::TEXT_PLAIN, "", false).is_err());
 
         Ok(())
     }

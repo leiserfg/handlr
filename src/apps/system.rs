@@ -99,8 +99,6 @@ impl SystemApps {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
 
     #[test]
@@ -111,10 +109,9 @@ mod tests {
         expected_handlers
             .push_back(DesktopHandler::assume_valid("nvim.desktop".into()));
 
-        let mime = Mime::from_str("text/plain")?;
         let mut associations: BTreeMap<Mime, DesktopList> = BTreeMap::new();
 
-        associations.insert(mime.clone(), expected_handlers.clone());
+        associations.insert(mime::TEXT_PLAIN, expected_handlers.clone());
 
         let system_apps = SystemApps {
             associations,
@@ -123,14 +120,14 @@ mod tests {
 
         assert_eq!(
             system_apps
-                .get_handler(&mime)
+                .get_handler(&mime::TEXT_PLAIN)
                 .expect("Could not get handler")
                 .to_string(),
             "helix.desktop"
         );
         assert_eq!(
             system_apps
-                .get_handlers(&mime)
+                .get_handlers(&mime::TEXT_PLAIN)
                 .expect("Could not get handler"),
             expected_handlers
         );
