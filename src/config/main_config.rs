@@ -387,7 +387,7 @@ impl MimeAppsTable {
         Self {
             added_associations: to_entries(&mimeapps.added_associations),
             default_apps: to_entries(&mimeapps.default_apps),
-            system_apps: to_entries(system_apps),
+            system_apps: to_entries(&system_apps.associations),
         }
     }
 }

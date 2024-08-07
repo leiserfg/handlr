@@ -3,16 +3,13 @@ use crate::{
     common::{DesktopEntry, DesktopHandler, Handleable},
     error::Result,
 };
-use derive_more::{Deref, DerefMut};
 use mime::Mime;
 use std::{collections::BTreeMap, convert::TryFrom, ffi::OsString, io::Write};
 
-#[derive(Debug, Default, Clone, Deref, DerefMut)]
+#[derive(Debug, Default, Clone)]
 pub struct SystemApps {
-    #[deref]
-    #[deref_mut]
     /// Associations of mimes and lists of apps
-    associations: BTreeMap<Mime, DesktopList>,
+    pub associations: BTreeMap<Mime, DesktopList>,
     /// Apps with no associated mime
     unassociated: DesktopList,
 }
@@ -20,7 +17,7 @@ pub struct SystemApps {
 impl SystemApps {
     /// Get the list of handlers associated with a given mime
     pub fn get_handlers(&self, mime: &Mime) -> Option<DesktopList> {
-        Some(self.get(mime)?.clone())
+        Some(self.associations.get(mime)?.clone())
     }
 
     /// Get the primary of handler associated with a given mime
