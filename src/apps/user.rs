@@ -1,5 +1,6 @@
 use crate::{
     common::{DesktopHandler, Handleable},
+    config::ConfigFile,
     error::{Error, ErrorKind, Result},
 };
 use derive_more::{Deref, DerefMut};
@@ -132,8 +133,7 @@ impl MimeApps {
     pub fn get_handler_from_user(
         &self,
         mime: &Mime,
-        selector: &str,
-        use_selector: bool,
+        config_file: &ConfigFile,
     ) -> Result<DesktopHandler> {
         let error = Error::from(ErrorKind::NotFound(mime.to_string()));
         // Check for an exact match first and then fall back to wildcard
@@ -156,10 +156,10 @@ impl MimeApps {
                     })
                     .collect_vec();
 
-                if use_selector && handlers.len() > 1 {
+                if config_file.enable_selector && handlers.len() > 1 {
                     let handler = {
                         let name = select(
-                            selector,
+                            &config_file.selector,
                             handlers.iter().map(|h| h.1.clone()),
                         )?;
 
@@ -364,10 +364,11 @@ mod tests {
     fn mimeapps_empty_entry_fallback() -> Result<()> {
         let file = File::open("./tests/mimeapps_empty_entry.list")?;
         let mime_apps = MimeApps::read_from(file)?;
+        let config_file = ConfigFile::default();
 
         assert_eq!(
             mime_apps
-                .get_handler_from_user(&mime::TEXT_PLAIN, "", false)?
+                .get_handler_from_user(&mime::TEXT_PLAIN, &config_file)?
                 .to_string(),
             "nvim.desktop"
         );

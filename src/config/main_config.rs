@@ -43,11 +43,7 @@ impl Config {
 
     /// Get the handler associated with a given mime
     pub fn get_handler(&self, mime: &Mime) -> Result<DesktopHandler> {
-        match self.mime_apps.get_handler_from_user(
-            mime,
-            &self.config.selector,
-            self.config.enable_selector,
-        ) {
+        match self.mime_apps.get_handler_from_user(mime, &self.config) {
             Err(e) if matches!(*e.kind, ErrorKind::Cancelled) => Err(e),
             h => h.or_else(|_| self.get_handler_from_added_associations(mime)),
         }
