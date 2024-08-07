@@ -1,5 +1,5 @@
-use crate::common::{DesktopHandler, MimeOrExtension, UserPath};
-use clap::Parser;
+pub use crate::common::{DesktopHandler, MimeOrExtension, UserPath};
+use clap::{Args, Parser};
 
 /// A better xdg-utils
 ///
@@ -69,16 +69,8 @@ pub enum Cmd {
         #[clap(required = true)]
         /// Paths/URLs to open
         paths: Vec<UserPath>,
-        #[clap(long, short)]
-        /// Override the configured selector command
-        selector: Option<String>,
-        #[clap(long, short)]
-        /// Enable selector, overrides `enable_selector`
-        enable_selector: bool,
-        #[clap(long, short)]
-        #[clap(overrides_with = "enable_selector")]
-        /// Disable selector, overrides `enable_selector`
-        disable_selector: bool,
+        #[command(flatten)]
+        selector_args: SelectorArgs,
     },
 
     /// Set the default handler for mime/extension
@@ -121,16 +113,8 @@ pub enum Cmd {
         mime: MimeOrExtension,
         /// Arguments to pass to handler program
         args: Vec<UserPath>,
-        #[clap(long, short)]
-        /// Override the configured selector command
-        selector: Option<String>,
-        #[clap(long, short)]
-        /// Enable selector, overrides `enable_selector`
-        enable_selector: bool,
-        #[clap(long, short)]
-        #[clap(overrides_with = "enable_selector")]
-        /// Disable selector, overrides `enable_selector`
-        disable_selector: bool,
+        #[command(flatten)]
+        selector_args: SelectorArgs,
     },
 
     #[clap(verbatim_doc_comment)]
@@ -158,16 +142,8 @@ pub enum Cmd {
         json: bool,
         /// Mimetype to get the handler of
         mime: MimeOrExtension,
-        #[clap(long, short)]
-        /// Override the configured selector command
-        selector: Option<String>,
-        #[clap(long, short)]
-        /// Enable selector, overrides `enable_selector`
-        enable_selector: bool,
-        #[clap(long, short)]
-        #[clap(overrides_with = "enable_selector")]
-        /// Disable selector, overrides `enable_selector`
-        disable_selector: bool,
+        #[command(flatten)]
+        selector_args: SelectorArgs,
     },
 
     /// Add a handler for given mime/extension
@@ -238,4 +214,18 @@ pub enum Cmd {
         /// Autocomplete for mimetypes/file extensions
         mimes: bool,
     },
+}
+
+#[derive(Clone, Args)]
+pub struct SelectorArgs {
+    #[clap(long, short)]
+    /// Override the configured selector command
+    pub selector: Option<String>,
+    #[clap(long, short)]
+    /// Enable selector, overrides `enable_selector`
+    pub enable_selector: bool,
+    #[clap(long, short)]
+    #[clap(overrides_with = "enable_selector")]
+    /// Disable selector, overrides `enable_selector`
+    pub disable_selector: bool,
 }

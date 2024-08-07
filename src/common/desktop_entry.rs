@@ -51,18 +51,16 @@ impl DesktopEntry {
         config: &Config,
         mode: Mode,
         arguments: Vec<String>,
-        selector: &str,
-        use_selector: bool,
     ) -> Result<()> {
         let supports_multiple =
             self.exec.contains("%F") || self.exec.contains("%U");
         if arguments.is_empty() {
-            self.exec_inner(config, vec![], selector, use_selector)?
+            self.exec_inner(config, vec![])?
         } else if supports_multiple || mode == Mode::Launch {
-            self.exec_inner(config, arguments, selector, use_selector)?;
+            self.exec_inner(config, arguments)?;
         } else {
             for arg in arguments {
-                self.exec_inner(config, vec![arg], selector, use_selector)?;
+                self.exec_inner(config, vec![arg])?;
             }
         };
 
@@ -71,16 +69,9 @@ impl DesktopEntry {
 
     /// Internal helper function for `exec`
     #[mutants::skip] // Cannot test directly, runs command
-    fn exec_inner(
-        &self,
-        config: &Config,
-        args: Vec<String>,
-        selector: &str,
-        use_selector: bool,
-    ) -> Result<()> {
+    fn exec_inner(&self, config: &Config, args: Vec<String>) -> Result<()> {
         let mut cmd = {
-            let (cmd, args) =
-                self.get_cmd(config, args, selector, use_selector)?;
+            let (cmd, args) = self.get_cmd(config, args)?;
             let mut cmd = Command::new(cmd);
             cmd.args(args);
             cmd
@@ -100,8 +91,6 @@ impl DesktopEntry {
         &self,
         config: &Config,
         args: Vec<String>,
-        selector: &str,
-        use_selector: bool,
     ) -> Result<(String, Vec<String>)> {
         let special =
             AhoCorasick::new_auto_configured(&["%f", "%F", "%u", "%U"]);
@@ -143,7 +132,7 @@ impl DesktopEntry {
         // If the entry expects a terminal (emulator), but this process is not running in one, we
         // launch a new one.
         if self.terminal && !config.terminal_output {
-            let term_cmd = config.terminal(selector, use_selector)?;
+            let term_cmd = config.terminal()?;
             exec = shlex::split(&term_cmd)
                 .ok_or_else(|| Error::from(ErrorKind::BadCmd(term_cmd)))?
                 .into_iter()
@@ -230,7 +219,7 @@ mod tests {
 
         let config = Config::default();
         let args = vec!["test".to_string()];
-        assert_eq!(entry.get_cmd(& config, args, "", false)?,
+        assert_eq!(entry.get_cmd(& config, args)?,
             (
                 "bash".to_string(),
                 [
@@ -254,7 +243,7 @@ mod tests {
         let config = Config::default();
         let args = vec!["test".to_string()];
         assert_eq!(
-            entry.get_cmd(&config, args, "", false)?,
+            entry.get_cmd(&config, args)?,
             (
                 "wezterm".to_string(),
                 ["start", "--cwd", ".", "test"]
@@ -299,8 +288,7 @@ mod tests {
         let entry =
             DesktopEntry::try_from(PathBuf::from("tests/Helix.desktop"))?;
 
-        let command =
-            entry.get_cmd(&config, vec!["test.txt".to_string()], "", false)?;
+        let command = entry.get_cmd(&config, vec!["test.txt".to_string()])?;
 
         assert_eq!(
             command,

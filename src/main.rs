@@ -29,45 +29,26 @@ fn main() -> Result<()> {
             Cmd::Launch {
                 mime,
                 args,
-                selector,
-                enable_selector,
-                disable_selector,
+                selector_args,
             } => {
-                config.launch_handler(
-                    &mime,
-                    args,
-                    selector,
-                    enable_selector,
-                    disable_selector,
-                )?;
+                config.override_selector(selector_args);
+                config.launch_handler(&mime, args)?;
             }
             Cmd::Get {
                 mime,
                 json,
-                selector,
-                enable_selector,
-                disable_selector,
+                selector_args,
             } => {
-                config.show_handler(
-                    &mut stdout,
-                    &mime,
-                    json,
-                    selector,
-                    enable_selector,
-                    disable_selector,
-                )?;
+                config.override_selector(selector_args);
+                config.show_handler(&mut stdout, &mime, json)?;
             }
             Cmd::Open {
                 paths,
-                selector,
-                enable_selector,
-                disable_selector,
-            } => config.open_paths(
-                &paths,
-                selector,
-                enable_selector,
-                disable_selector,
-            )?,
+                selector_args,
+            } => {
+                config.override_selector(selector_args);
+                config.open_paths(&paths)?;
+            }
             Cmd::Mime { paths, json } => {
                 mime_table(&mut stdout, &paths, json, config.terminal_output)?;
             }
