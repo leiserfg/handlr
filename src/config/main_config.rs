@@ -9,6 +9,7 @@ use tabled::Tabled;
 
 use crate::{
     apps::{DesktopList, MimeApps, SystemApps},
+    cli::SelectorArgs,
     common::{render_table, DesktopHandler, Handleable, Handler, UserPath},
     config::config_file::ConfigFile,
     error::{Error, ErrorKind, Result},
@@ -41,16 +42,12 @@ impl Config {
     }
 
     /// Get the handler associated with a given mime
-    pub fn get_handler(
-        &self,
-        mime: &Mime,
-        selector: &str,
-        use_selector: bool,
-    ) -> Result<DesktopHandler> {
-        match self
-            .mime_apps
-            .get_handler_from_user(mime, selector, use_selector)
-        {
+    pub fn get_handler(&self, mime: &Mime) -> Result<DesktopHandler> {
+        match self.mime_apps.get_handler_from_user(
+            mime,
+            &self.config.selector,
+            self.config.enable_selector,
+        ) {
             Err(e) if matches!(*e.kind, ErrorKind::Cancelled) => Err(e),
             h => h.or_else(|_| self.get_handler_from_added_associations(mime)),
         }
@@ -78,20 +75,9 @@ impl Config {
         &self,
         mime: &Mime,
         args: Vec<UserPath>,
-        selector: Option<String>,
-        enable_selector: bool,
-        disable_selector: bool,
     ) -> Result<()> {
-        let selector = selector.unwrap_or(self.config.selector.clone());
-        let use_selector =
-            self.config.use_selector(enable_selector, disable_selector);
-
-        self.get_handler(mime, &selector, use_selector)?.launch(
-            self,
-            args.into_iter().map(|a| a.to_string()).collect(),
-            &selector,
-            use_selector,
-        )
+        self.get_handler(mime)?
+            .launch(self, args.into_iter().map(|a| a.to_string()).collect())
     }
 
     /// Get the handler associated with a given mime
@@ -100,19 +86,12 @@ impl Config {
         writer: &mut W,
         mime: &Mime,
         output_json: bool,
-        selector: Option<String>,
-        enable_selector: bool,
-        disable_selector: bool,
     ) -> Result<()> {
-        let selector = selector.unwrap_or(self.config.selector.clone());
-        let use_selector =
-            self.config.use_selector(enable_selector, disable_selector);
-
-        let handler = self.get_handler(mime, &selector, use_selector)?;
+        let handler = self.get_handler(mime)?;
 
         let output = if output_json {
             let entry = handler.get_entry()?;
-            let cmd = entry.get_cmd(self, vec![], &selector, use_selector)?;
+            let cmd = entry.get_cmd(self, vec![])?;
 
             (serde_json::json!( {
                 "handler": handler.to_string(),
@@ -151,81 +130,53 @@ impl Config {
 
     /// Open the given paths with their respective handlers
     #[mutants::skip] // Cannot test directly, runs external commands
-    pub fn open_paths(
-        &self,
-        paths: &[UserPath],
-        selector: Option<String>,
-        enable_selector: bool,
-        disable_selector: bool,
-    ) -> Result<()> {
-        let selector = selector.unwrap_or(self.config.selector.clone());
-        let use_selector =
-            self.config.use_selector(enable_selector, disable_selector);
-
+    pub fn open_paths(&self, paths: &[UserPath]) -> Result<()> {
         let mut handlers: HashMap<Handler, Vec<String>> = HashMap::new();
 
         for path in paths.iter() {
             handlers
-                .entry(self.get_handler_from_path(
-                    path,
-                    &selector,
-                    use_selector,
-                )?)
+                .entry(self.get_handler_from_path(path)?)
                 .or_default()
                 .push(path.to_string())
         }
 
         for (handler, paths) in handlers.into_iter() {
-            handler.open(self, paths, &selector, use_selector)?;
+            handler.open(self, paths)?;
         }
 
         Ok(())
     }
 
     /// Get the handler associated with a given path
-    fn get_handler_from_path(
-        &self,
-        path: &UserPath,
-        selector: &str,
-        use_selector: bool,
-    ) -> Result<Handler> {
+    fn get_handler_from_path(&self, path: &UserPath) -> Result<Handler> {
         Ok(if let Ok(handler) = self.config.get_regex_handler(path) {
             handler.into()
         } else {
-            self.get_handler(&path.get_mime()?, selector, use_selector)?
-                .into()
+            self.get_handler(&path.get_mime()?)?.into()
         })
     }
 
     /// Get the command for the x-scheme-handler/terminal handler if one is set.
     /// Otherwise, finds a terminal emulator program and uses it.
     // TODO: test falling back to system
-    pub fn terminal(
-        &self,
-        selector: &str,
-        use_selector: bool,
-    ) -> Result<String> {
+    pub fn terminal(&self) -> Result<String> {
         // Get the terminal handler if there is one set
-        self.get_handler(
-            &Mime::from_str("x-scheme-handler/terminal")?,
-            selector,
-            use_selector,
-        )
-        .ok()
-        .and_then(|h| h.get_entry().ok())
-        // Otherwise, get a terminal emulator program
-        .or_else(|| self.system_apps.terminal_emulator())
-        .map(|e| {
-            let mut exec = e.exec.to_owned();
+        self.get_handler(&Mime::from_str("x-scheme-handler/terminal")?)
+            .ok()
+            .and_then(|h| h.get_entry().ok())
+            // Otherwise, get a terminal emulator program
+            .or_else(|| self.system_apps.terminal_emulator())
+            .map(|e| {
+                let mut exec = e.exec.to_owned();
 
-            if let Some(opts) = &self.config.term_exec_args {
-                exec.push(' ');
-                exec.push_str(opts)
-            }
+                if let Some(opts) = &self.config.term_exec_args {
+                    exec.push(' ');
+                    exec.push_str(opts)
+                }
 
-            exec
-        })
-        .ok_or_else(|| Error::from(ErrorKind::NoTerminal))
+                exec
+            })
+            .ok_or_else(|| Error::from(ErrorKind::NoTerminal))
     }
 
     /// Print the set associations and system-level associations in a table
@@ -315,6 +266,12 @@ impl Config {
         }
 
         Ok(())
+    }
+
+    /// Override the set selector
+    /// Currently assumes the config file will never be saved to other than to create an existing one
+    pub fn override_selector(&mut self, selector_args: SelectorArgs) {
+        self.config.override_selector(selector_args);
     }
 }
 
@@ -411,19 +368,19 @@ mod tests {
 
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("video/mp4")?, "", false)?
+                .get_handler(&Mime::from_str("video/mp4")?)?
                 .to_string(),
             "mpv.desktop"
         );
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("video/asdf")?, "", false)?
+                .get_handler(&Mime::from_str("video/asdf")?)?
                 .to_string(),
             "mpv.desktop"
         );
         assert_eq!(
             config
-                .get_handler(&Mime::from_str("video/webm")?, "", false)?
+                .get_handler(&Mime::from_str("video/webm")?)?
                 .to_string(),
             "brave.desktop"
         );
@@ -445,11 +402,9 @@ mod tests {
 
         assert_eq!(
             config
-                .get_handler(
-                    &Mime::from_str("application/vnd.oasis.opendocument.text")?,
-                    "",
-                    false
-                )?
+                .get_handler(&Mime::from_str(
+                    "application/vnd.oasis.opendocument.text"
+                )?,)?
                 .to_string(),
             "startcenter.desktop"
         );
@@ -457,8 +412,6 @@ mod tests {
             config
                 .get_handler(
                     &Mime::from_str("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")?,
-                    "",
-                    false
                 )?
                 .to_string(),
             "startcenter.desktop"
@@ -607,7 +560,7 @@ mod tests {
             &DesktopHandler::from_str("tests/org.wezfurlong.wezterm.desktop")?,
         )?;
 
-        assert_eq!(config.terminal("", false)?, "wezterm start --cwd . -e");
+        assert_eq!(config.terminal()?, "wezterm start --cwd . -e");
 
         Ok(())
     }
@@ -622,7 +575,7 @@ mod tests {
                 "tests/org.wezfurlong.wezterm.desktop",
             )?);
 
-        assert_eq!(config.terminal("", false)?, "wezterm start --cwd . -e");
+        assert_eq!(config.terminal()?, "wezterm start --cwd . -e");
 
         Ok(())
     }
@@ -649,14 +602,7 @@ mod tests {
             &DesktopHandler::from_str("tests/org.wezfurlong.wezterm.desktop")?,
         )?;
 
-        config.show_handler(
-            writer,
-            &mime::TEXT_PLAIN,
-            output_json,
-            None,
-            false,
-            false,
-        )?;
+        config.show_handler(writer, &mime::TEXT_PLAIN, output_json)?;
 
         Ok(())
     }
@@ -706,9 +652,7 @@ mod tests {
 
         // Should return first added handler
         assert_eq!(
-            config
-                .get_handler(&mime::TEXT_PLAIN, "", false,)?
-                .to_string(),
+            config.get_handler(&mime::TEXT_PLAIN)?.to_string(),
             "Helix.desktop"
         );
 
@@ -719,9 +663,7 @@ mod tests {
 
         // Should still return first added handler
         assert_eq!(
-            config
-                .get_handler(&mime::TEXT_PLAIN, "", false,)?
-                .to_string(),
+            config.get_handler(&mime::TEXT_PLAIN)?.to_string(),
             "Helix.desktop"
         );
 
@@ -736,9 +678,7 @@ mod tests {
 
         // With first added handler removed, second handler replaces it
         assert_eq!(
-            config
-                .get_handler(&mime::TEXT_PLAIN, "", false,)?
-                .to_string(),
+            config.get_handler(&mime::TEXT_PLAIN)?.to_string(),
             "nvim.desktop"
         );
 
@@ -748,7 +688,7 @@ mod tests {
         )?;
 
         // Both handlers removed, should not be any left
-        assert!(config.get_handler(&mime::TEXT_PLAIN, "", false).is_err());
+        assert!(config.get_handler(&mime::TEXT_PLAIN).is_err());
 
         Ok(())
     }
@@ -760,9 +700,7 @@ mod tests {
         )?;
 
         assert_eq!(
-            config
-                .get_handler(&mime::TEXT_PLAIN, "", false,)?
-                .to_string(),
+            config.get_handler(&mime::TEXT_PLAIN)?.to_string(),
             "Helix.desktop"
         );
 
@@ -773,9 +711,7 @@ mod tests {
 
         // Should return second set handler because it should replace the first one
         assert_eq!(
-            config
-                .get_handler(&mime::TEXT_PLAIN, "", false,)?
-                .to_string(),
+            config.get_handler(&mime::TEXT_PLAIN)?.to_string(),
             "nvim.desktop"
         );
 
@@ -786,7 +722,7 @@ mod tests {
         config.unset_handler(&mime::TEXT_PLAIN)?;
 
         // Handler completely unset, should not be any left
-        assert!(config.get_handler(&mime::TEXT_PLAIN, "", false).is_err());
+        assert!(config.get_handler(&mime::TEXT_PLAIN).is_err());
 
         Ok(())
     }

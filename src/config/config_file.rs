@@ -1,4 +1,5 @@
 use crate::{
+    cli::SelectorArgs,
     common::{RegexApps, RegexHandler, UserPath},
     error::Result,
 };
@@ -46,12 +47,25 @@ impl ConfigFile {
     }
 
     /// Determine whether or not the selector should be enabled
-    pub fn use_selector(
+    fn use_selector(
         &self,
         enable_selector: bool,
         disable_selector: bool,
     ) -> bool {
         (self.enable_selector || enable_selector) && !disable_selector
+    }
+
+    /// Override the set selector
+    /// Currently assumes the config file will never be saved to
+    pub fn override_selector(&mut self, selector_args: SelectorArgs) {
+        if let Some(selector) = selector_args.selector {
+            self.selector = selector;
+        }
+
+        self.enable_selector = self.use_selector(
+            selector_args.enable_selector,
+            selector_args.disable_selector,
+        )
     }
 }
 

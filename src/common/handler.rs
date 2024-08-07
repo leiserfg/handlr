@@ -25,20 +25,8 @@ pub trait Handleable {
     fn get_entry(&self) -> Result<DesktopEntry>;
     /// Open the given paths with the handler
     #[mutants::skip] // Cannot test directly, runs commands
-    fn open(
-        &self,
-        config: &Config,
-        args: Vec<String>,
-        selector: &str,
-        enable_selector: bool,
-    ) -> Result<()> {
-        self.get_entry()?.exec(
-            config,
-            ExecMode::Open,
-            args,
-            selector,
-            enable_selector,
-        )
+    fn open(&self, config: &Config, args: Vec<String>) -> Result<()> {
+        self.get_entry()?.exec(config, ExecMode::Open, args)
     }
 }
 
@@ -90,20 +78,8 @@ impl DesktopHandler {
 
     /// Launch a DesktopHandler's desktop entry
     #[mutants::skip] // Cannot test directly, runs command
-    pub fn launch(
-        &self,
-        config: &Config,
-        args: Vec<String>,
-        selector: &str,
-        enable_selector: bool,
-    ) -> Result<()> {
-        self.get_entry()?.exec(
-            config,
-            ExecMode::Launch,
-            args,
-            selector,
-            enable_selector,
-        )
+    pub fn launch(&self, config: &Config, args: Vec<String>) -> Result<()> {
+        self.get_entry()?.exec(config, ExecMode::Launch, args)
     }
 }
 
