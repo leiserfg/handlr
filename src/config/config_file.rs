@@ -46,15 +46,6 @@ impl ConfigFile {
         Ok(confy::load("handlr")?)
     }
 
-    /// Determine whether or not the selector should be enabled
-    fn use_selector(
-        &self,
-        enable_selector: bool,
-        disable_selector: bool,
-    ) -> bool {
-        (self.enable_selector || enable_selector) && !disable_selector
-    }
-
     /// Override the set selector
     /// Currently assumes the config file will never be saved to
     pub fn override_selector(&mut self, selector_args: SelectorArgs) {
@@ -62,36 +53,8 @@ impl ConfigFile {
             self.selector = selector;
         }
 
-        self.enable_selector = self.use_selector(
-            selector_args.enable_selector,
-            selector_args.disable_selector,
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_use_selector() -> Result<()> {
-        let mut config_file = ConfigFile {
-            enable_selector: true,
-            ..Default::default()
-        };
-
-        assert!(config_file.use_selector(true, false));
-        assert!(config_file.use_selector(false, false));
-        assert!(!config_file.use_selector(false, true));
-        assert!(!config_file.use_selector(true, true));
-
-        config_file.enable_selector = false;
-
-        assert!(config_file.use_selector(true, false));
-        assert!(!config_file.use_selector(false, false));
-        assert!(!config_file.use_selector(false, true));
-        assert!(!config_file.use_selector(true, true));
-
-        Ok(())
+        self.enable_selector = (self.enable_selector
+            || selector_args.enable_selector)
+            && !selector_args.disable_selector;
     }
 }
