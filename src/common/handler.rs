@@ -3,17 +3,11 @@ use crate::{
     config::Config,
     error::{Error, ErrorKind, Result},
 };
-use derive_more::Deref;
 use enum_dispatch::enum_dispatch;
 use regex::RegexSet;
 use serde::{Deserialize, Serialize};
 use std::{
-    convert::TryFrom,
-    ffi::OsString,
-    fmt::Display,
-    hash::{Hash, Hasher},
-    path::PathBuf,
-    str::FromStr,
+    convert::TryFrom, ffi::OsString, fmt::Display, path::PathBuf, str::FromStr,
 };
 
 /// Represents a program or command that is used to open a file
@@ -114,12 +108,13 @@ impl DesktopHandler {
 }
 
 /// Represents a regex handler from the config
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RegexHandler {
     exec: String,
     #[serde(default)]
     terminal: bool,
-    regexes: HandlerRegexSet,
+    #[serde(with = "serde_regex")]
+    regexes: RegexSet,
 }
 
 impl RegexHandler {
@@ -132,27 +127,6 @@ impl RegexHandler {
 impl Handleable for RegexHandler {
     fn get_entry(&self) -> Result<DesktopEntry> {
         Ok(DesktopEntry::fake_entry(&self.exec, self.terminal))
-    }
-}
-
-// Wrapping RegexSet in a struct and implementing Eq and Hash for it
-// saves us from having to implement them for RegexHandler as a whole.
-#[derive(Debug, Clone, Deserialize, Deref)]
-struct HandlerRegexSet(#[serde(with = "serde_regex")] RegexSet);
-
-impl PartialEq for HandlerRegexSet {
-    #[mutants::skip] // Trivial
-    fn eq(&self, other: &Self) -> bool {
-        self.patterns() == other.patterns()
-    }
-}
-
-impl Eq for HandlerRegexSet {}
-
-impl Hash for HandlerRegexSet {
-    #[mutants::skip] // Trivial
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.patterns().hash(state);
     }
 }
 
@@ -187,7 +161,7 @@ mod tests {
         let regex_handler = RegexHandler {
             exec: String::from(exec),
             terminal: false,
-            regexes: HandlerRegexSet(RegexSet::new(regexes)?),
+            regexes: RegexSet::new(regexes)?,
         };
 
         let regex_apps = RegexApps(vec![regex_handler.clone()]);
