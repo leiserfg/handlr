@@ -3,16 +3,21 @@ use crate::{
     config::Config,
     error::{Error, ErrorKind, Result},
 };
+use derive_more::Deref;
 use enum_dispatch::enum_dispatch;
-use regex::RegexSet;
 use serde::{Deserialize, Serialize};
 use std::{
-    convert::TryFrom, ffi::OsString, fmt::Display, path::PathBuf, str::FromStr,
+    convert::TryFrom,
+    ffi::OsString,
+    fmt::Display,
+    hash::{Hash, Hasher},
+    path::PathBuf,
+    str::FromStr,
 };
 
 /// Represents a program or command that is used to open a file
-#[derive(PartialEq, Eq, Hash)]
 #[enum_dispatch(Handleable)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Handler {
     DesktopHandler,
     RegexHandler,
@@ -84,12 +89,11 @@ impl DesktopHandler {
 }
 
 /// Represents a regex handler from the config
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 pub struct RegexHandler {
     exec: String,
     #[serde(default)]
     terminal: bool,
-    #[serde(with = "serde_regex")]
     regexes: RegexSet,
 }
 
@@ -103,6 +107,36 @@ impl RegexHandler {
 impl Handleable for RegexHandler {
     fn get_entry(&self) -> Result<DesktopEntry> {
         Ok(DesktopEntry::fake_entry(&self.exec, self.terminal))
+    }
+}
+
+/// Helper struct needed because regex::RegexSet does not implement Hash
+#[derive(Deref, Debug, Clone, Deserialize)]
+struct RegexSet(#[serde(with = "serde_regex")] regex::RegexSet);
+
+#[cfg(test)]
+impl RegexSet {
+    /// Create new RegexSet, currently only needed for tests
+    pub fn new<I, S>(exprs: I) -> Result<Self>
+    where
+        S: AsRef<str>,
+        I: IntoIterator<Item = S>,
+    {
+        Ok(RegexSet(regex::RegexSet::new(exprs)?))
+    }
+}
+
+impl PartialEq for RegexSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.patterns() == other.patterns()
+    }
+}
+
+impl Eq for RegexSet {}
+
+impl Hash for RegexSet {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.patterns().hash(state);
     }
 }
 
