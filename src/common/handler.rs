@@ -23,6 +23,14 @@ pub enum Handler {
     RegexHandler,
 }
 
+#[cfg(test)]
+impl Handler {
+    /// Helper function for testing
+    pub fn new(name: &str) -> Self {
+        Handler::DesktopHandler(DesktopHandler::assume_valid(name.into()))
+    }
+}
+
 /// Trait providing common functionality for handlers
 #[enum_dispatch]
 pub trait Handleable {

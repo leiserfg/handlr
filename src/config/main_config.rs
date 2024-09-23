@@ -856,4 +856,67 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn properly_assign_files_to_handlers() -> Result<()> {
+        let mut config = Config::default();
+        config.add_handler(
+            &Mime::from_str("image/png")?,
+            &DesktopHandler::assume_valid("swayimg.desktop".into()),
+        )?;
+        config.add_handler(
+            &Mime::from_str("application/pdf")?,
+            &DesktopHandler::assume_valid("mupdf.desktop".into()),
+        )?;
+
+        let mut expected_handlers = HashMap::new();
+        expected_handlers
+            .insert(Handler::new("swayimg.desktop"), vec!["a.png".to_owned()]);
+        expected_handlers
+            .insert(Handler::new("mupdf.desktop"), vec!["a.pdf".to_owned()]);
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.png")?,
+                UserPath::from_str("a.pdf")?
+            ])?,
+            expected_handlers
+        );
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.pdf")?,
+                UserPath::from_str("a.png")?
+            ])?,
+            expected_handlers
+        );
+
+        let mut expected_handlers = HashMap::new();
+        expected_handlers.insert(
+            Handler::new("swayimg.desktop"),
+            vec!["a.png".to_owned(), "b.png".to_owned()],
+        );
+        expected_handlers
+            .insert(Handler::new("mupdf.desktop"), vec!["a.pdf".to_owned()]);
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.png")?,
+                UserPath::from_str("b.png")?,
+                UserPath::from_str("a.pdf")?
+            ])?,
+            expected_handlers
+        );
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.pdf")?,
+                UserPath::from_str("a.png")?,
+                UserPath::from_str("b.png")?
+            ])?,
+            expected_handlers
+        );
+
+        Ok(())
+    }
 }
