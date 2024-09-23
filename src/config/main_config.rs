@@ -127,6 +127,20 @@ impl Config {
     /// Open the given paths with their respective handlers
     #[mutants::skip] // Cannot test directly, runs external commands
     pub fn open_paths(&self, paths: &[UserPath]) -> Result<()> {
+        for (handler, paths) in
+            self.assign_files_to_handlers(paths)?.into_iter()
+        {
+            handler.open(self, paths)?;
+        }
+
+        Ok(())
+    }
+
+    /// Helper function to assign files to their respective handlers
+    fn assign_files_to_handlers(
+        &self,
+        paths: &[UserPath],
+    ) -> Result<HashMap<Handler, Vec<String>>> {
         let mut handlers: HashMap<Handler, Vec<String>> = HashMap::new();
 
         for path in paths.iter() {
@@ -136,11 +150,7 @@ impl Config {
                 .push(path.to_string())
         }
 
-        for (handler, paths) in handlers.into_iter() {
-            handler.open(self, paths)?;
-        }
-
-        Ok(())
+        Ok(handlers)
     }
 
     /// Get the handler associated with a given path
