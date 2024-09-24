@@ -135,6 +135,7 @@ impl RegexSet {
 }
 
 impl PartialEq for RegexSet {
+    #[mutants::skip] // Trivial
     fn eq(&self, other: &Self) -> bool {
         self.patterns() == other.patterns()
     }
@@ -143,6 +144,7 @@ impl PartialEq for RegexSet {
 impl Eq for RegexSet {}
 
 impl Hash for RegexSet {
+    #[mutants::skip] // Trivial
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.patterns().hash(state);
     }
