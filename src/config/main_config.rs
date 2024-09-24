@@ -127,6 +127,20 @@ impl Config {
     /// Open the given paths with their respective handlers
     #[mutants::skip] // Cannot test directly, runs external commands
     pub fn open_paths(&self, paths: &[UserPath]) -> Result<()> {
+        for (handler, paths) in
+            self.assign_files_to_handlers(paths)?.into_iter()
+        {
+            handler.open(self, paths)?;
+        }
+
+        Ok(())
+    }
+
+    /// Helper function to assign files to their respective handlers
+    fn assign_files_to_handlers(
+        &self,
+        paths: &[UserPath],
+    ) -> Result<HashMap<Handler, Vec<String>>> {
         let mut handlers: HashMap<Handler, Vec<String>> = HashMap::new();
 
         for path in paths.iter() {
@@ -136,11 +150,7 @@ impl Config {
                 .push(path.to_string())
         }
 
-        for (handler, paths) in handlers.into_iter() {
-            handler.open(self, paths)?;
-        }
-
-        Ok(())
+        Ok(handlers)
     }
 
     /// Get the handler associated with a given path
@@ -843,6 +853,69 @@ mod tests {
 
         assert_eq!(config.config.selector, "rofi -dmenu -i -p 'Open With: '");
         assert_eq!(config.config.enable_selector, true);
+
+        Ok(())
+    }
+
+    #[test]
+    fn properly_assign_files_to_handlers() -> Result<()> {
+        let mut config = Config::default();
+        config.add_handler(
+            &Mime::from_str("image/png")?,
+            &DesktopHandler::assume_valid("swayimg.desktop".into()),
+        )?;
+        config.add_handler(
+            &Mime::from_str("application/pdf")?,
+            &DesktopHandler::assume_valid("mupdf.desktop".into()),
+        )?;
+
+        let mut expected_handlers = HashMap::new();
+        expected_handlers
+            .insert(Handler::new("swayimg.desktop"), vec!["a.png".to_owned()]);
+        expected_handlers
+            .insert(Handler::new("mupdf.desktop"), vec!["a.pdf".to_owned()]);
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.png")?,
+                UserPath::from_str("a.pdf")?
+            ])?,
+            expected_handlers
+        );
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.pdf")?,
+                UserPath::from_str("a.png")?
+            ])?,
+            expected_handlers
+        );
+
+        let mut expected_handlers = HashMap::new();
+        expected_handlers.insert(
+            Handler::new("swayimg.desktop"),
+            vec!["a.png".to_owned(), "b.png".to_owned()],
+        );
+        expected_handlers
+            .insert(Handler::new("mupdf.desktop"), vec!["a.pdf".to_owned()]);
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.png")?,
+                UserPath::from_str("b.png")?,
+                UserPath::from_str("a.pdf")?
+            ])?,
+            expected_handlers
+        );
+
+        assert_eq!(
+            config.assign_files_to_handlers(&[
+                UserPath::from_str("a.pdf")?,
+                UserPath::from_str("a.png")?,
+                UserPath::from_str("b.png")?
+            ])?,
+            expected_handlers
+        );
 
         Ok(())
     }
