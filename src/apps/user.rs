@@ -1,5 +1,5 @@
 use crate::{
-    common::{DesktopHandler, Handleable},
+    common::{mime_types, DesktopHandler, Handleable},
     config::ConfigFile,
     error::{Error, ErrorKind, Result},
 };
@@ -70,17 +70,59 @@ impl Display for DesktopList {
 
 impl MimeApps {
     /// Add a handler to an existing default application association
-    pub fn add_handler(&mut self, mime: &Mime, handler: &DesktopHandler) {
-        self.default_apps
-            .entry(mime.clone())
-            .or_default()
-            .push_back(handler.clone());
+    pub fn add_handler(
+        &mut self,
+        mime: &Mime,
+        handler: &DesktopHandler,
+        expand_wildcards: bool,
+    ) -> Result<()> {
+        if expand_wildcards {
+            let wildcard = wildmatch::WildMatch::new(mime.as_ref());
+            mime_types()
+                .iter()
+                .filter(|mime| wildcard.matches(mime))
+                .try_for_each(|mime| -> Result<()> {
+                    self.default_apps
+                        .entry(Mime::from_str(mime)?)
+                        .or_default()
+                        .push_back(handler.clone());
+                    Ok(())
+                })?
+        } else {
+            self.default_apps
+                .entry(mime.clone())
+                .or_default()
+                .push_back(handler.clone());
+        }
+        Ok(())
     }
 
     /// Set a default application association, overwriting any existing association for the same mimetype
-    pub fn set_handler(&mut self, mime: &Mime, handler: &DesktopHandler) {
-        self.default_apps
-            .insert(mime.clone(), DesktopList(vec![handler.clone()].into()));
+    pub fn set_handler(
+        &mut self,
+        mime: &Mime,
+        handler: &DesktopHandler,
+        expand_wildcards: bool,
+    ) -> Result<()> {
+        if expand_wildcards {
+            let wildcard = wildmatch::WildMatch::new(mime.as_ref());
+            mime_types()
+                .iter()
+                .filter(|mime| wildcard.matches(mime))
+                .try_for_each(|mime| -> Result<()> {
+                    self.default_apps.insert(
+                        Mime::from_str(mime)?,
+                        DesktopList(vec![handler.clone()].into()),
+                    );
+                    Ok(())
+                })?
+        } else {
+            self.default_apps.insert(
+                mime.clone(),
+                DesktopList(vec![handler.clone()].into()),
+            );
+        }
+        Ok(())
     }
 
     /// Entirely remove a given mime's default application association
@@ -387,7 +429,8 @@ mod tests {
             mime_apps.add_handler(
                 &mime::TEXT_HTML,
                 &DesktopHandler::from_str("nvim.desktop")?,
-            );
+                false,
+            )?;
             Ok(())
         };
 

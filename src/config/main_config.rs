@@ -109,7 +109,11 @@ impl Config {
         mime: &Mime,
         handler: &DesktopHandler,
     ) -> Result<()> {
-        self.mime_apps.set_handler(mime, handler);
+        self.mime_apps.set_handler(
+            mime,
+            handler,
+            self.config.expand_wildcards,
+        )?;
         self.mime_apps.save()
     }
 
@@ -120,7 +124,11 @@ impl Config {
         mime: &Mime,
         handler: &DesktopHandler,
     ) -> Result<()> {
-        self.mime_apps.add_handler(mime, handler);
+        self.mime_apps.add_handler(
+            mime,
+            handler,
+            self.config.expand_wildcards,
+        )?;
         self.mime_apps.save()
     }
 
