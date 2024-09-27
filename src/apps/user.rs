@@ -447,4 +447,84 @@ mod tests {
             noop,
         )
     }
+
+    #[test]
+    fn set_handlers_expand_wildcards() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        mime_apps.set_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.set_handler(
+            &Mime::from_str("application/vnd.oasis.opendocument.*")?,
+            &DesktopHandler::assume_valid("startcenter.desktop".into()),
+            true,
+        )?;
+
+        // This should only add video/mp4
+        mime_apps.set_handler(
+            &Mime::from_str("video/mp4")?,
+            &DesktopHandler::assume_valid("mpv.desktop".into()),
+            true,
+        )?;
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_handlers_expand_wildcards() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.set_handler(
+            &Mime::from_str("application/vnd.oasis.opendocument.*")?,
+            &DesktopHandler::assume_valid("startcenter.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+            true,
+        )?;
+
+        // This should only add video/mp4
+        mime_apps.set_handler(
+            &Mime::from_str("video/mp4")?,
+            &DesktopHandler::assume_valid("mpv.desktop".into()),
+            true,
+        )?;
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn unset_handlers_expand_wildcards() -> Result<()> {
+        todo!("sjdhfksjd");
+        Ok(())
+    }
+
+    #[test]
+    fn remove_handlers_expand_wildcards() -> Result<()> {
+        todo!("sjdhfksjd");
+        Ok(())
+    }
 }
