@@ -13,12 +13,14 @@ pub struct ConfigFile {
     pub enable_selector: bool,
     /// The selector command to run
     pub selector: String,
+    /// Extra arguments to pass to terminal application
+    pub term_exec_args: Option<String>,
+    /// Whether to expand wildcards when saving mimeapps.list
+    pub expand_wildcards: bool,
     /// Regex handlers
     // NOTE: Serializing is only necessary for generating a default config file
     #[serde(skip_serializing)]
     pub handlers: RegexApps,
-    /// Extra arguments to pass to terminal application
-    pub term_exec_args: Option<String>,
 }
 
 impl Default for ConfigFile {
@@ -26,10 +28,11 @@ impl Default for ConfigFile {
         ConfigFile {
             enable_selector: false,
             selector: "rofi -dmenu -i -p 'Open With: '".into(),
-            handlers: Default::default(),
             // Required for many xterm-compatible terminal emulators
             // Unfortunately, messes up emulators that don't accept it
             term_exec_args: Some("-e".into()),
+            expand_wildcards: false,
+            handlers: Default::default(),
         }
     }
 }

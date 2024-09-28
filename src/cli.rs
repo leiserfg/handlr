@@ -78,6 +78,8 @@ pub enum Cmd {
     /// Overwrites currently set handler(s) for the given mime/extension.
     ///
     /// Asterisks can be used as wildcards to set multiple mimetypes.
+    /// When `expand_wildcards` is true in `~/.config/handlr/handlr.toml`,
+    /// wildcards will be expanded into matching mimes rather than added verbatim
     ///
     /// File extensions are converted into their respective mimetypes in mimeapps.list.
     ///
@@ -91,7 +93,8 @@ pub enum Cmd {
 
     /// Unset the default handler for mime/extension
     ///
-    /// Wildcards cannot be used unless removing handlers that already have wildcards.
+    /// Literal wildcards (e.g. `text/*`) will be favored over matching mimetypes if present.
+    /// Otherwise, mimes matching wildcards (e.g. `text/plain`, etc.) will be removed.
     ///
     /// If multiple default handlers are set, both will be removed.
     ///
@@ -150,6 +153,9 @@ pub enum Cmd {
     ///
     /// Note that the first handler is the default.
     ///
+    /// When `expand_wildcards` is true in `~/.config/handlr/handlr.toml`,
+    /// wildcards will be expanded into matching mimes rather than matched verbatim.
+    ///
     /// This subcommand adds secondary handlers that coexist with the default
     /// and does not overwrite existing handlers.
     Add {
@@ -163,8 +169,8 @@ pub enum Cmd {
     ///
     /// Note that if a handler is not supplied,
     ///
-    /// Wildcards cannot be used unless removing handlers from mimetypes
-    /// that already have wildcards.
+    /// Literal wildcards (e.g. `text/*`) will be favored over matching mimetypes if present.
+    /// Otherwise, mimes matching wildcards (e.g. `text/plain`, etc.) will have their handlers removed.
     Remove {
         /// Mimetype to remove handler from
         mime: MimeOrExtension,

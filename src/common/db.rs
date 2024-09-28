@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::error::Result;
 use std::io::Write;
 
@@ -8,18 +10,27 @@ static CUSTOM_MIMES: &[&str] = &[
     "x-scheme-handler/terminal",
 ];
 
+/// Helper function to get a list of known mime types
+pub fn mime_types() -> Vec<String> {
+    CUSTOM_MIMES
+        .iter()
+        .map(|s| s.to_string())
+        .chain(
+            mime_db::TYPES
+                .into_iter()
+                .map(|(mime, _, _)| mime.to_string()),
+        )
+        .collect_vec()
+}
+
 pub fn autocomplete<W: Write>(writer: &mut W) -> Result<()> {
     mime_db::EXTENSIONS
         .iter()
         .try_for_each(|(ext, _)| writeln!(writer, ".{}", ext))?;
 
-    CUSTOM_MIMES
+    mime_types()
         .iter()
         .try_for_each(|mime| writeln!(writer, "{}", mime))?;
-
-    mime_db::TYPES
-        .iter()
-        .try_for_each(|(mime, _, _)| writeln!(writer, "{}", mime))?;
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::{
-    common::{DesktopHandler, Handleable},
+    common::{mime_types, DesktopHandler, Handleable},
     config::ConfigFile,
     error::{Error, ErrorKind, Result},
 };
@@ -17,6 +17,7 @@ use std::{
     path::PathBuf,
     str::FromStr,
 };
+use wildmatch::WildMatch;
 
 /// Represents user-configured mimeapps.list file
 #[serde_as]
@@ -70,22 +71,74 @@ impl Display for DesktopList {
 
 impl MimeApps {
     /// Add a handler to an existing default application association
-    pub fn add_handler(&mut self, mime: &Mime, handler: &DesktopHandler) {
-        self.default_apps
-            .entry(mime.clone())
-            .or_default()
-            .push_back(handler.clone());
+    pub fn add_handler(
+        &mut self,
+        mime: &Mime,
+        handler: &DesktopHandler,
+        expand_wildcards: bool,
+    ) -> Result<()> {
+        if expand_wildcards {
+            let wildcard = WildMatch::new(mime.as_ref());
+            mime_types()
+                .iter()
+                .filter(|mime| wildcard.matches(mime))
+                .try_for_each(|mime| -> Result<()> {
+                    self.default_apps
+                        .entry(Mime::from_str(mime)?)
+                        .or_default()
+                        .push_back(handler.clone());
+                    Ok(())
+                })?
+        } else {
+            self.default_apps
+                .entry(mime.clone())
+                .or_default()
+                .push_back(handler.clone());
+        }
+        Ok(())
     }
 
     /// Set a default application association, overwriting any existing association for the same mimetype
-    pub fn set_handler(&mut self, mime: &Mime, handler: &DesktopHandler) {
-        self.default_apps
-            .insert(mime.clone(), DesktopList(vec![handler.clone()].into()));
+    pub fn set_handler(
+        &mut self,
+        mime: &Mime,
+        handler: &DesktopHandler,
+        expand_wildcards: bool,
+    ) -> Result<()> {
+        if expand_wildcards {
+            let wildcard = WildMatch::new(mime.as_ref());
+            mime_types()
+                .iter()
+                .filter(|mime| wildcard.matches(mime))
+                .try_for_each(|mime| -> Result<()> {
+                    self.default_apps.insert(
+                        Mime::from_str(mime)?,
+                        DesktopList(vec![handler.clone()].into()),
+                    );
+                    Ok(())
+                })?
+        } else {
+            self.default_apps.insert(
+                mime.clone(),
+                DesktopList(vec![handler.clone()].into()),
+            );
+        }
+        Ok(())
     }
 
     /// Entirely remove a given mime's default application association
-    pub fn unset_handler(&mut self, mime: &Mime) -> Option<DesktopList> {
-        self.default_apps.remove(mime)
+    pub fn unset_handler(&mut self, mime: &Mime) -> Option<()> {
+        // If exact match is found, remove it
+        self.default_apps.remove(mime).map_or_else(
+            || {
+                let wildcard = WildMatch::new(mime.as_ref());
+                // Otherwise, remove all wildcard matches
+                self.default_apps
+                    .retain(|m, _| !wildcard.matches(m.as_ref()));
+                Some(())
+            },
+            |_| Some(()),
+        )
     }
 
     /// Remove a given handler from a given mime's default file associaion
@@ -93,13 +146,34 @@ impl MimeApps {
         &mut self,
         mime: &Mime,
         handler: &DesktopHandler,
-    ) -> Option<DesktopHandler> {
+    ) -> Option<()> {
         let handler_list = self.default_apps.entry(mime.clone()).or_default();
 
+        // If exact match is found, remove handler from it
         handler_list
             .iter()
             .position(|x| *x == *handler)
             .and_then(|pos| handler_list.remove(pos))
+            // Otherwise, look for a wildcard match
+            .map_or_else(
+                || {
+                    let wildcard = WildMatch::new(mime.as_ref());
+                    self.default_apps
+                        .clone()
+                        .keys()
+                        .filter(|m| wildcard.matches(m.as_ref()))
+                        .for_each(|m| {
+                            let handler_list =
+                                self.default_apps.entry(m.clone()).or_default();
+                            handler_list
+                                .iter()
+                                .position(|x| *x == *handler)
+                                .and_then(|pos| handler_list.remove(pos));
+                        });
+                    Some(())
+                },
+                |_| Some(()),
+            )
     }
 
     /// Get a list of handlers associated with a wildcard mime
@@ -387,7 +461,8 @@ mod tests {
             mime_apps.add_handler(
                 &mime::TEXT_HTML,
                 &DesktopHandler::from_str("nvim.desktop")?,
-            );
+                false,
+            )?;
             Ok(())
         };
 
@@ -403,5 +478,168 @@ mod tests {
             "./tests/mimeapps_no_added.list",
             noop,
         )
+    }
+
+    #[test]
+    fn set_handlers_expand_wildcards() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        mime_apps.set_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.set_handler(
+            &Mime::from_str("application/vnd.oasis.opendocument.*")?,
+            &DesktopHandler::assume_valid("startcenter.desktop".into()),
+            true,
+        )?;
+
+        // This should only add video/mp4
+        mime_apps.set_handler(
+            &Mime::from_str("video/mp4")?,
+            &DesktopHandler::assume_valid("mpv.desktop".into()),
+            true,
+        )?;
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_handlers_expand_wildcards() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.add_handler(
+            &Mime::from_str("application/vnd.oasis.opendocument.*")?,
+            &DesktopHandler::assume_valid("startcenter.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+            true,
+        )?;
+
+        // This should only add video/mp4
+        mime_apps.add_handler(
+            &Mime::from_str("video/mp4")?,
+            &DesktopHandler::assume_valid("mpv.desktop".into()),
+            true,
+        )?;
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn unset_handlers_expand_wildcards() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+
+        // Just add text/*
+        mime_apps.set_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            false,
+        )?;
+
+        // Add all the non-wildcard text mimes
+        mime_apps.set_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        // text/* should still be present
+        assert!(mime_apps
+            .default_apps
+            .contains_key(&Mime::from_str("text/*")?));
+
+        mime_apps.unset_handler(&Mime::from_str("text/*")?);
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+
+        // Only text/* should be removed first
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        mime_apps.unset_handler(&Mime::from_str("text/*")?);
+
+        // Now that text/* isn't literally present, remove the rest of the text mimes
+        assert!(mime_apps.default_apps.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn remove_handlers_expand_wildcards() -> Result<()> {
+        let mut mime_apps = MimeApps::default();
+        // Just add text/*
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            false,
+        )?;
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+            false,
+        )?;
+
+        // Add all the non-wildcard text mimes
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+            true,
+        )?;
+
+        // Only remove from text/*
+        mime_apps.remove_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        );
+
+        assert_eq!(
+            mime_apps.default_apps.get(&Mime::from_str("text/*")?),
+            Some(&DesktopList(
+                vec![DesktopHandler::assume_valid("nvim.desktop".into())]
+                    .into()
+            ))
+        );
+
+        // Remove from the rest of the text mimes
+        mime_apps.remove_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        );
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        Ok(())
     }
 }
