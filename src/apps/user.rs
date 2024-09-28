@@ -17,6 +17,7 @@ use std::{
     path::PathBuf,
     str::FromStr,
 };
+use wildmatch::WildMatch;
 
 /// Represents user-configured mimeapps.list file
 #[serde_as]
@@ -77,7 +78,7 @@ impl MimeApps {
         expand_wildcards: bool,
     ) -> Result<()> {
         if expand_wildcards {
-            let wildcard = wildmatch::WildMatch::new(mime.as_ref());
+            let wildcard = WildMatch::new(mime.as_ref());
             mime_types()
                 .iter()
                 .filter(|mime| wildcard.matches(mime))
@@ -105,7 +106,7 @@ impl MimeApps {
         expand_wildcards: bool,
     ) -> Result<()> {
         if expand_wildcards {
-            let wildcard = wildmatch::WildMatch::new(mime.as_ref());
+            let wildcard = WildMatch::new(mime.as_ref());
             mime_types()
                 .iter()
                 .filter(|mime| wildcard.matches(mime))
@@ -126,8 +127,18 @@ impl MimeApps {
     }
 
     /// Entirely remove a given mime's default application association
-    pub fn unset_handler(&mut self, mime: &Mime) -> Option<DesktopList> {
-        self.default_apps.remove(mime)
+    pub fn unset_handler(&mut self, mime: &Mime) -> Option<()> {
+        // If exact match is found, remove it
+        self.default_apps.remove(mime).map_or_else(
+            || {
+                let wildcard = WildMatch::new(mime.as_ref());
+                // Otherwise, remove all wildcard matches
+                self.default_apps
+                    .retain(|m, _| !wildcard.matches(m.as_ref()));
+                Some(())
+            },
+            |_| Some(()),
+        )
     }
 
     /// Remove a given handler from a given mime's default file associaion
@@ -135,13 +146,34 @@ impl MimeApps {
         &mut self,
         mime: &Mime,
         handler: &DesktopHandler,
-    ) -> Option<DesktopHandler> {
+    ) -> Option<()> {
         let handler_list = self.default_apps.entry(mime.clone()).or_default();
 
+        // If exact match is found, remove handler from it
         handler_list
             .iter()
             .position(|x| *x == *handler)
             .and_then(|pos| handler_list.remove(pos))
+            // Otherwise, look for a wildcard match
+            .map_or_else(
+                || {
+                    let wildcard = WildMatch::new(mime.as_ref());
+                    self.default_apps
+                        .clone()
+                        .keys()
+                        .filter(|m| wildcard.matches(m.as_ref()))
+                        .for_each(|m| {
+                            let handler_list =
+                                self.default_apps.entry(m.clone()).or_default();
+                            handler_list
+                                .iter()
+                                .position(|x| *x == *handler)
+                                .and_then(|pos| handler_list.remove(pos));
+                        });
+                    Some(())
+                },
+                |_| Some(()),
+            )
     }
 
     /// Get a list of handlers associated with a wildcard mime
