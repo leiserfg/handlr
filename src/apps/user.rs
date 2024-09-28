@@ -392,8 +392,7 @@ mod tests {
 
         assert_eq!(
             String::from_utf8(buffer)?,
-            // Unfortunately, serde_ini outputs \r\n line endings
-            std::fs::read_to_string(expected_path)?.replace('\n', "\r\n")
+            std::fs::read_to_string(expected_path)?
         );
 
         Ok(())
