@@ -11,7 +11,7 @@ Fork of the original [handlr](https://github.com/chmln/handlr)
 - Intelligent mime type detection from files based on extension and content
 - Open multiple files at once
 - Set multiple handlers for mime/extension and use `rofi`/`dmenu` to pick one
-- Wildcard support like `text/*`
+- Optional wildcard support like `text/*`
 - Automatically removes invalid/wrong `.desktop` entries from `mimeapps.list`
 - Helper commands like `launch`, `get --json`, `mime --json` for your scripting needs
 - Unnecessarily fast (written in Rust)
@@ -131,6 +131,14 @@ For more information:
 ## Smart table output
 
 Starting with v0.10.0, commands with table output (i.e. `handlr list` and `handlr mime`) switch to outputting tab-separated values when piped for use with commands like `cut`.
+
+## Optional wildcards
+
+When `expand_wildcards` is set to `true` in `~/.config/handler/handlr.toml`, rather than wildcard mimes being saved directly to `mimeapps.list`, they will be expanded into all matching mimetypes.
+
+This is off by default and will not automatically expand wildcards already present in `mimeapps.list` when enabled. Simply use `handlr remove` and `handlr add` to manually expand them.
+
+In addition, regardless of settings, literal wildcards are preferred when using `handlr remove` and `handlr unset`. (e.g. When using `handlr remove text/*`, if `text/*` is present, it will be removed, but `text/plain`, etc. will not be.)
 
 ## Screenshots
 
