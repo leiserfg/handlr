@@ -630,6 +630,7 @@ version = "0.11.2"
 dependencies = [
  "aho-corasick 0.7.20",
  "clap",
+ "clap_mangen",
  "confy",
  "derive_more",
  "enum_dispatch",
@@ -2106,14 +2107,6 @@ dependencies = [
  "mime",
  "nom",
  "unicase",
-]
-
-[[package]]
-name = "xtask"
-version = "0.11.2"
-dependencies = [
- "clap",
- "clap_mangen",
 ]
 
 [[package]]

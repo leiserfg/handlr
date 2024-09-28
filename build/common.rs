@@ -1,4 +1,4 @@
-// This file exists solely to trick xtask into working
+// This file exists solely to trick build script into working
 // These types are used by cli.rs, which cannot be transitively imported
 // because they rely on their own dependencies and so on
 
