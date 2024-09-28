@@ -489,7 +489,7 @@ mod tests {
             true,
         )?;
 
-        mime_apps.set_handler(
+        mime_apps.add_handler(
             &Mime::from_str("application/vnd.oasis.opendocument.*")?,
             &DesktopHandler::assume_valid("startcenter.desktop".into()),
             true,
@@ -502,7 +502,7 @@ mod tests {
         )?;
 
         // This should only add video/mp4
-        mime_apps.set_handler(
+        mime_apps.add_handler(
             &Mime::from_str("video/mp4")?,
             &DesktopHandler::assume_valid("mpv.desktop".into()),
             true,
@@ -518,13 +518,96 @@ mod tests {
 
     #[test]
     fn unset_handlers_expand_wildcards() -> Result<()> {
-        todo!("sjdhfksjd");
+        let mut mime_apps = MimeApps::default();
+
+        // Just add text/*
+        mime_apps.set_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            false,
+        )?;
+
+        // Add all the non-wildcard text mimes
+        mime_apps.set_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        // text/* should still be present
+        assert!(mime_apps
+            .default_apps
+            .contains_key(&Mime::from_str("text/*")?));
+
+        mime_apps.unset_handler(&Mime::from_str("text/*")?);
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+
+        // Only text/* should be removed first
+        goldie::assert!(String::from_utf8(buffer)?);
+
+        mime_apps.unset_handler(&Mime::from_str("text/*")?);
+
+        // Now that text/* isn't literally present, remove the rest of the text mimes
+        assert!(mime_apps.default_apps.is_empty());
+
         Ok(())
     }
 
     #[test]
     fn remove_handlers_expand_wildcards() -> Result<()> {
-        todo!("sjdhfksjd");
+        let mut mime_apps = MimeApps::default();
+        // Just add text/*
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            false,
+        )?;
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+            false,
+        )?;
+
+        // Add all the non-wildcard text mimes
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+            true,
+        )?;
+
+        mime_apps.add_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("nvim.desktop".into()),
+            true,
+        )?;
+
+        // Only remove from text/*
+        mime_apps.remove_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        );
+
+        assert_eq!(
+            mime_apps.default_apps.get(&Mime::from_str("text/*")?),
+            Some(&DesktopList(
+                vec![DesktopHandler::assume_valid("nvim.desktop".into())]
+                    .into()
+            ))
+        );
+
+        // Remove from the rest of the text mimes
+        mime_apps.remove_handler(
+            &Mime::from_str("text/*")?,
+            &DesktopHandler::assume_valid("Helix.desktop".into()),
+        );
+
+        let mut buffer = Vec::new();
+        mime_apps.save_to(&mut buffer)?;
+        goldie::assert!(String::from_utf8(buffer)?);
+
         Ok(())
     }
 }
