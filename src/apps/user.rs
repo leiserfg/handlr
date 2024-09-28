@@ -311,7 +311,15 @@ impl MimeApps {
     fn save_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
         // Remove empty entries
         self.default_apps.retain(|_, handlers| !handlers.is_empty());
-        serde_ini::ser::to_writer(writer, self)?;
+
+        // Use Linefeed instead of default carriage return
+        let w = serde_ini::write::Writer::new(
+            writer,
+            serde_ini::write::LineEnding::Linefeed,
+        );
+        let mut ser = serde_ini::ser::Serializer::new(w);
+        self.serialize(&mut ser)?;
+
         Ok(())
     }
 }
