@@ -16,11 +16,16 @@ use std::{
 type DynResult = Result<(), Box<dyn Error>>;
 
 fn main() -> DynResult {
+    println!("cargo:rerun-if-changed=build/");
     mangen()
 }
 
 /// Generate man page for binary and subcommands
 fn mangen() -> DynResult {
+    println!("cargo:rerun-if-env-changed=PROJECT_NAME");
+    println!("cargo:rerun-if-env-changed=PROJECT_EXECUTABLE");
+    println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
+
     eprintln!("Generating man pages");
 
     let out_dir = release_dir().join("manual/man1");
