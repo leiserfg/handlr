@@ -15,7 +15,7 @@ use clap::Parser;
 
 #[mutants::skip] // Cannot test directly at the moment
 fn main() -> Result<()> {
-    let mut config = Config::new();
+    let mut config = Config::new()?;
     let mut stdout = std::io::stdout().lock();
 
     let res = || -> Result<()> {
