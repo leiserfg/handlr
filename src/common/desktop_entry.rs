@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
 };
 use aho_corasick::AhoCorasick;
 use freedesktop_desktop_entry::{
@@ -96,10 +96,10 @@ impl DesktopEntry {
             AhoCorasick::new_auto_configured(&["%f", "%F", "%u", "%U"]);
 
         let mut exec = shlex::split(&self.exec).ok_or_else(|| {
-            Error::from(ErrorKind::BadExec(
+            Error::BadExec(
                 self.exec.clone(),
                 self.file_name.to_string_lossy().to_string(),
-            ))
+            )
         })?;
 
         // The desktop entry doesn't contain arguments - we make best effort and append them at
@@ -134,7 +134,7 @@ impl DesktopEntry {
         if self.terminal && !config.terminal_output {
             let term_cmd = config.terminal()?;
             exec = shlex::split(&term_cmd)
-                .ok_or_else(|| Error::from(ErrorKind::BadCmd(term_cmd)))?
+                .ok_or_else(|| Error::BadCmd(term_cmd))?
                 .into_iter()
                 .chain(exec)
                 .collect();
@@ -196,7 +196,7 @@ impl DesktopEntry {
 impl TryFrom<PathBuf> for DesktopEntry {
     type Error = Error;
     fn try_from(path: PathBuf) -> Result<Self> {
-        Self::parse_file(&path).ok_or(Error::from(ErrorKind::BadEntry(path)))
+        Self::parse_file(&path).ok_or(Error::BadEntry(path))
     }
 }
 

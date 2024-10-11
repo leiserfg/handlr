@@ -9,7 +9,7 @@ use apps::SystemApps;
 use cli::Cmd;
 use common::mime_table;
 use config::Config;
-use error::{ErrorKind, Result};
+use error::{Error, Result};
 
 use clap::Parser;
 
@@ -76,7 +76,7 @@ fn main() -> Result<()> {
     }();
 
     match (res, config.terminal_output) {
-        (Err(e), _) if matches!(*e.kind, ErrorKind::Cancelled) => {
+        (Err(Error::Cancelled), _) => {
             std::process::exit(1);
         }
         (Err(e), true) => {

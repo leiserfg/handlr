@@ -12,7 +12,7 @@ use crate::{
     cli::SelectorArgs,
     common::{render_table, DesktopHandler, Handleable, Handler, UserPath},
     config::config_file::ConfigFile,
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
 };
 
 /// A single struct that holds all apps and config.
@@ -44,7 +44,7 @@ impl Config {
     /// Get the handler associated with a given mime
     pub fn get_handler(&self, mime: &Mime) -> Result<DesktopHandler> {
         match self.mime_apps.get_handler_from_user(mime, &self.config) {
-            Err(e) if matches!(*e.kind, ErrorKind::Cancelled) => Err(e),
+            Err(e) if matches!(e, Error::Cancelled) => Err(e),
             h => h.or_else(|_| self.get_handler_from_added_associations(mime)),
         }
     }
@@ -62,7 +62,7 @@ impl Config {
                 || self.system_apps.get_handler(mime),
                 |h| h.front().cloned(),
             )
-            .ok_or_else(|| Error::from(ErrorKind::NotFound(mime.to_string())))
+            .ok_or_else(|| Error::NotFound(mime.to_string()))
     }
 
     /// Given a mime and arguments, launch the associated handler with the arguments
@@ -190,7 +190,7 @@ impl Config {
 
                 exec
             })
-            .ok_or_else(|| Error::from(ErrorKind::NoTerminal))
+            .ok_or_else(|| Error::NoTerminal)
     }
 
     /// Print the set associations and system-level associations in a table

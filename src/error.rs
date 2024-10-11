@@ -1,24 +1,6 @@
 /// Custom error type
 #[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct Error {
-    pub kind: Box<ErrorKind>,
-}
-
-impl<E> From<E> for Error
-where
-    ErrorKind: From<E>,
-{
-    fn from(err: E) -> Self {
-        Error {
-            kind: Box::new(ErrorKind::from(err)),
-        }
-    }
-}
-
-/// Custom error messages
-#[derive(Debug, thiserror::Error)]
-pub enum ErrorKind {
+pub enum Error {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
@@ -60,7 +42,7 @@ pub enum ErrorKind {
     BadUrl(#[from] url::ParseError),
     #[cfg(test)]
     #[error(transparent)]
-    FromUtf8Error(#[from] std::string::FromUtf8Error),
+    FromUtf8(#[from] std::string::FromUtf8Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

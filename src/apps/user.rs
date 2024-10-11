@@ -1,7 +1,7 @@
 use crate::{
     common::{mime_types, DesktopHandler, Handleable},
     config::ConfigFile,
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
 };
 use derive_more::{Deref, DerefMut};
 use itertools::Itertools;
@@ -209,7 +209,7 @@ impl MimeApps {
         mime: &Mime,
         config_file: &ConfigFile,
     ) -> Result<DesktopHandler> {
-        let error = Error::from(ErrorKind::NotFound(mime.to_string()));
+        let error = Error::NotFound(mime.to_string());
         // Check for an exact match first and then fall back to wildcard
         match self
             .default_apps
@@ -336,9 +336,8 @@ fn select<O: Iterator<Item = String>>(
     };
 
     let process = {
-        let mut split = shlex::split(selector).ok_or_else(|| {
-            Error::from(ErrorKind::BadCmd(selector.to_string()))
-        })?;
+        let mut split = shlex::split(selector)
+            .ok_or_else(|| Error::BadCmd(selector.to_string()))?;
         let (cmd, args) = (split.remove(0), split);
         Command::new(cmd)
             .args(args)
@@ -350,21 +349,21 @@ fn select<O: Iterator<Item = String>>(
     let output = {
         process
             .stdin
-            .ok_or_else(|| ErrorKind::Selector(selector.to_string()))?
+            .ok_or_else(|| Error::Selector(selector.to_string()))?
             .write_all(opts.join("\n").as_bytes())?;
 
         let mut output = String::with_capacity(24);
 
         process
             .stdout
-            .ok_or_else(|| ErrorKind::Selector(selector.to_string()))?
+            .ok_or_else(|| Error::Selector(selector.to_string()))?
             .read_to_string(&mut output)?;
 
         output.trim_end().to_owned()
     };
 
     if output.is_empty() {
-        Err(Error::from(ErrorKind::Cancelled))
+        Err(Error::Cancelled)
     } else {
         Ok(output)
     }
