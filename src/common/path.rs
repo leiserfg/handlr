@@ -1,6 +1,6 @@
 use crate::{
     common::{render_table, MimeType},
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
 };
 use mime::Mime;
 use serde::Serialize;
@@ -35,9 +35,9 @@ impl FromStr for UserPath {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let normalized = match url::Url::parse(s) {
             Ok(url) if url.scheme() == "file" => {
-                let path = url.to_file_path().map_err(|_| {
-                    Error::from(ErrorKind::BadPath(url.path().to_owned()))
-                })?;
+                let path = url
+                    .to_file_path()
+                    .map_err(|_| Error::BadPath(url.path().to_owned()))?;
 
                 Self::File(path)
             }

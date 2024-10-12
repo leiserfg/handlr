@@ -1,7 +1,7 @@
 use crate::{
     common::{DesktopEntry, ExecMode, UserPath},
     config::Config,
-    error::{Error, ErrorKind, Result},
+    error::{Error, Result},
 };
 use derive_more::Deref;
 use enum_dispatch::enum_dispatch;
@@ -84,7 +84,7 @@ impl DesktopHandler {
             Ok(xdg::BaseDirectories::new()?
                 .find_data_file(path)
                 .ok_or_else(|| {
-                    ErrorKind::NotFound(name.to_string_lossy().into())
+                    Error::NotFound(name.to_string_lossy().into())
                 })?)
         }
     }
@@ -161,7 +161,7 @@ impl RegexApps {
             .0
             .iter()
             .find(|app| app.is_match(&path.to_string()))
-            .ok_or_else(|| ErrorKind::NotFound(path.to_string()))?
+            .ok_or_else(|| Error::NotFound(path.to_string()))?
             .clone())
     }
 }

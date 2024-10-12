@@ -1,4 +1,4 @@
-use crate::error::{Error, ErrorKind, Result};
+use crate::error::{Error, Result};
 use derive_more::Deref;
 use mime::Mime;
 use std::{convert::TryFrom, path::Path, str::FromStr};
@@ -14,7 +14,7 @@ impl MimeType {
             .get_mime_types_from_file_name(ext)
         {
             [m] if m == &mime::APPLICATION_OCTET_STREAM => {
-                Err(Error::from(ErrorKind::Ambiguous(ext.into())))
+                Err(Error::Ambiguous(ext.into()))
             }
             [guess, ..] => Ok(guess.clone()),
             [] => unreachable!(),
@@ -49,7 +49,7 @@ impl TryFrom<&Path> for MimeType {
                 guess.path(path).guess().mime_type().clone(),
                 false,
             )
-            .ok_or_else(|| ErrorKind::Ambiguous(path.to_owned()))?
+            .ok_or_else(|| Error::Ambiguous(path.to_owned()))?
         };
 
         Ok(Self(mime))
@@ -85,9 +85,7 @@ impl FromStr for MimeOrExtension {
             MimeType::from_ext(s)?
         } else {
             match Mime::from_str(s)? {
-                m if m.subtype() == "" => {
-                    return Err(Error::from(ErrorKind::InvalidMime(m)))
-                }
+                m if m.subtype() == "" => return Err(Error::InvalidMime(m)),
                 proper_mime => proper_mime,
             }
         };
