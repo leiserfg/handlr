@@ -33,6 +33,7 @@ serde_ini = "0.2.0"
 serde_with = "3.8.3"
 wildmatch = "2.3.4"
 mutants = "0.0.3"
+clap_complete = { version = "4.5.33", features = ["unstable-dynamic"] }
 
 [[bin]]
 name = "handlr"
@@ -44,6 +45,7 @@ pretty_assertions = "1.4.0"
 
 [build-dependencies]
 clap = { version = "4.5.2", features = ["derive"] }
+clap_complete = { version = "4.5.33", features = ["unstable-dynamic"] }
 clap_mangen = "0.2.20"
 
 [profile.release]
