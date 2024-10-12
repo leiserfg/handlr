@@ -4,7 +4,7 @@ use crate::{
     error::Result,
 };
 use mime::Mime;
-use std::{collections::BTreeMap, convert::TryFrom, ffi::OsString, io::Write};
+use std::{collections::BTreeMap, convert::TryFrom, ffi::OsString};
 
 #[derive(Debug, Default, Clone)]
 pub struct SystemApps {
@@ -78,16 +78,6 @@ impl SystemApps {
             .iter()
             .filter_map(|h| h.get_entry().ok())
             .find(|h| h.is_terminal_emulator())
-    }
-
-    /// List the available handlers
-    #[mutants::skip] // Cannot test directly, depends on system state
-    pub fn list_handlers<W: Write>(writer: &mut W) -> Result<()> {
-        Self::get_entries()?.try_for_each(|(_, e)| {
-            writeln!(writer, "{}\t{}", e.file_name.to_string_lossy(), e.name)
-        })?;
-
-        Ok(())
     }
 
     #[cfg(test)]
