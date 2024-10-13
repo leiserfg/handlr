@@ -52,17 +52,6 @@ fn main() -> Result<()> {
         Cmd::List { all, json } => config.print(&mut stdout, all, json),
         Cmd::Unset { mime } => config.unset_handler(&mime),
         Cmd::Remove { mime, handler } => config.remove_handler(&mime, &handler),
-        Cmd::Autocomplete {
-            desktop_files: _,
-            mimes: _,
-        } => {
-            // if desktop_files {
-            //     SystemApps::list_handlers(&mut stdout)?;
-            // } else if mimes {
-            //     common::db_autocomplete(&mut stdout)?;
-            // }
-            Ok(())
-        }
     };
 
     // Issue a notification if handlr is not being run in a terminal

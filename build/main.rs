@@ -37,8 +37,5 @@ fn mangen(out_dir: &Path) -> DynResult {
 
     clap_mangen::generate_to(Cmd::command().name("handlr"), &dest_dir)?;
 
-    // Remove hidden subcommand's manpage
-    remove_file(dest_dir.join("handlr-autocomplete.1"))?;
-
     Ok(())
 }

@@ -219,22 +219,6 @@ pub enum Cmd {
         /// Output mimetype info as json
         json: bool,
     },
-
-    #[clap(hide = true)]
-    /// Helper subcommand for autocompletion scripts; should be hidden
-    ///
-    /// This should not be visible in `handlr --help` output, autocompletion, or man pages.
-    /// If you see this there, please open an issue on GitHub.
-    ///
-    /// However it is fine if this shows up in the output of `handlr autocomplete --help`.
-    Autocomplete {
-        #[clap(short)]
-        /// Autocomplete for desktop files present on system
-        desktop_files: bool,
-        #[clap(short)]
-        /// Autocomplete for mimetypes/file extensions
-        mimes: bool,
-    },
 }
 
 #[derive(Clone, Args)]
