@@ -5,7 +5,7 @@ mod mime_types;
 mod path;
 mod table;
 
-pub use self::db::{autocomplete as db_autocomplete, mime_types};
+pub use self::db::mime_types;
 pub use desktop_entry::{DesktopEntry, Mode as ExecMode};
 pub use handler::{
     DesktopHandler, Handleable, Handler, RegexApps, RegexHandler,

@@ -5,16 +5,18 @@ mod config;
 mod error;
 mod utils;
 
-use apps::SystemApps;
 use cli::Cmd;
 use common::mime_table;
 use config::Config;
 use error::Result;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::CompleteEnv;
 
 #[mutants::skip] // Cannot test directly at the moment
 fn main() -> Result<()> {
+    CompleteEnv::with_factory(|| Cmd::command().name("handlr")).complete();
+
     let mut config = Config::new()?;
     let mut stdout = std::io::stdout().lock();
 
@@ -50,17 +52,6 @@ fn main() -> Result<()> {
         Cmd::List { all, json } => config.print(&mut stdout, all, json),
         Cmd::Unset { mime } => config.unset_handler(&mime),
         Cmd::Remove { mime, handler } => config.remove_handler(&mime, &handler),
-        Cmd::Autocomplete {
-            desktop_files,
-            mimes,
-        } => {
-            if desktop_files {
-                SystemApps::list_handlers(&mut stdout)?;
-            } else if mimes {
-                common::db_autocomplete(&mut stdout)?;
-            }
-            Ok(())
-        }
     };
 
     // Issue a notification if handlr is not being run in a terminal

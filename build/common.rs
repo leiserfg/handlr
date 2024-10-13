@@ -5,3 +5,7 @@
 pub type DesktopHandler = String;
 pub type MimeOrExtension = String;
 pub type UserPath = String;
+
+pub fn mime_types() -> Vec<String> {
+    vec!["".to_string()]
+}

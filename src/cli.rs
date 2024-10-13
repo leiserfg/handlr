@@ -1,5 +1,11 @@
-pub use crate::common::{DesktopHandler, MimeOrExtension, UserPath};
-use clap::{Args, Parser};
+use std::fmt::Write;
+
+use crate::{
+    apps::SystemApps,
+    common::{mime_types, DesktopHandler, MimeOrExtension, UserPath},
+};
+use clap::{builder::StyledStr, Args, Parser};
+use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
 
 /// A better xdg-utils
 ///
@@ -85,8 +91,10 @@ pub enum Cmd {
     ///
     /// Currently does not support regex handlers.
     Set {
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to operate on.
         mime: MimeOrExtension,
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program
         handler: DesktopHandler,
     },
@@ -100,6 +108,7 @@ pub enum Cmd {
     ///
     /// Currently does not support regex handlers.
     Unset {
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to unset the default handler of
         mime: MimeOrExtension,
     },
@@ -112,6 +121,7 @@ pub enum Cmd {
     /// you will be prompted to select one using `selector` from ~/.config/handlr/handlr.toml.
     /// Otherwise, the default handler will be opened.
     Launch {
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to launch the handler of
         mime: MimeOrExtension,
         /// Arguments to pass to handler program
@@ -143,6 +153,7 @@ pub enum Cmd {
         #[clap(long)]
         /// Output handler info as json
         json: bool,
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to get the handler of
         mime: MimeOrExtension,
         #[command(flatten)]
@@ -159,8 +170,10 @@ pub enum Cmd {
     /// This subcommand adds secondary handlers that coexist with the default
     /// and does not overwrite existing handlers.
     Add {
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to add handler to
         mime: MimeOrExtension,
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program
         handler: DesktopHandler,
     },
@@ -172,8 +185,10 @@ pub enum Cmd {
     /// Literal wildcards (e.g. `text/*`) will be favored over matching mimetypes if present.
     /// Otherwise, mimes matching wildcards (e.g. `text/plain`, etc.) will have their handlers removed.
     Remove {
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to remove handler from
         mime: MimeOrExtension,
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program to remove
         handler: DesktopHandler,
     },
@@ -204,22 +219,6 @@ pub enum Cmd {
         /// Output mimetype info as json
         json: bool,
     },
-
-    #[clap(hide = true)]
-    /// Helper subcommand for autocompletion scripts; should be hidden
-    ///
-    /// This should not be visible in `handlr --help` output, autocompletion, or man pages.
-    /// If you see this there, please open an issue on GitHub.
-    ///
-    /// However it is fine if this shows up in the output of `handlr autocomplete --help`.
-    Autocomplete {
-        #[clap(short)]
-        /// Autocomplete for desktop files present on system
-        desktop_files: bool,
-        #[clap(short)]
-        /// Autocomplete for mimetypes/file extensions
-        mimes: bool,
-    },
 }
 
 #[derive(Clone, Args)]
@@ -234,4 +233,32 @@ pub struct SelectorArgs {
     #[clap(overrides_with = "enable_selector")]
     /// Disable selector, overrides `enable_selector`
     pub disable_selector: bool,
+}
+
+/// Generate candidates for mimes and file extensions to use
+#[mutants::skip] // TODO: figure out how to test with golden tests
+fn autocomplete_mimes(_current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    let mut mimes = mime_db::EXTENSIONS
+        .iter()
+        .map(|(ext, _)| CompletionCandidate::new(format!(".{ext}")))
+        .chain(mime_types().iter().map(CompletionCandidate::new))
+        .collect::<Vec<_>>();
+    mimes.sort();
+    mimes
+}
+
+/// Generate candidates for desktop files
+#[mutants::skip] // Cannot test directly, relies on system state
+fn autocomplete_desktop_files(
+    _current: &std::ffi::OsStr,
+) -> Vec<CompletionCandidate> {
+    SystemApps::get_entries()
+        .expect("Could not get system desktop entries")
+        .map(|(path, entry)| {
+            let mut name = StyledStr::new();
+            write!(name, "{}", entry.name)
+                .expect("Could not write desktop entry name");
+            CompletionCandidate::new(path).help(Some(name))
+        })
+        .collect()
 }

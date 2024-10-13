@@ -140,6 +140,17 @@ This is off by default and will not automatically expand wildcards already prese
 
 In addition, regardless of settings, literal wildcards are preferred when using `handlr remove` and `handlr unset`. (e.g. When using `handlr remove text/*`, if `text/*` is present, it will be removed, but `text/plain`, etc. will not be.)
 
+## Completion scripts
+
+To generate a shell completion script, run `COMPLETE=<shell> handlr`, where `<shell>` is the name of the target shell (e.g. bash, zsh, fish, elvish, powershell, etc.). Note that this will only print it to stdout rather than creating a file or installing the script automatically.
+
+If you usually install `handlr-regex` from your distribution's repository, and you are not involved with packaging it, you probably do not need to worry about this.
+
+See [`clap_complete`'s documentation](https://docs.rs/clap_complete/latest/clap_complete/aot/enum.Shell.html) for the list of currently supported shells.
+
+> [!NOTE]
+> This currently relies on unstable features of the `clap_complete` crate and may potentially change in the future.
+
 ## Screenshots
 
 <table><tr><td>
