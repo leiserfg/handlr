@@ -5,7 +5,10 @@ use crate::{
     common::{mime_types, DesktopHandler, MimeOrExtension, UserPath},
 };
 use clap::{builder::StyledStr, Args, Parser};
-use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
+use clap_complete::{
+    engine::{ArgValueCompleter, CompletionCandidate},
+    PathCompleter,
+};
 
 /// A better xdg-utils
 ///
@@ -72,7 +75,7 @@ pub enum Cmd {
     /// you will be prompted to select one using `selector` from ~/.config/handlr/handlr.toml.
     /// Otherwise, the default handler will be opened.
     Open {
-        #[clap(required = true)]
+        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         /// Paths/URLs to open
         paths: Vec<UserPath>,
         #[command(flatten)]
@@ -124,6 +127,8 @@ pub enum Cmd {
         #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to launch the handler of
         mime: MimeOrExtension,
+        // Not necessarily a path, but completing as a path tends to be the expected "default" behavior
+        #[clap(add=ArgValueCompleter::new(PathCompleter::any()))]
         /// Arguments to pass to handler program
         args: Vec<UserPath>,
         #[command(flatten)]
@@ -212,7 +217,7 @@ pub enum Cmd {
     /// ...
     /// ]
     Mime {
-        #[clap(required = true)]
+        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         /// File paths/URLs to get the mimetype of
         paths: Vec<UserPath>,
         #[clap(long)]
