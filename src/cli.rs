@@ -22,7 +22,6 @@ use clap_complete::{
 #[clap(disable_help_subcommand = true)]
 #[clap(version, about)]
 pub enum Cmd {
-    #[clap(verbatim_doc_comment)]
     /// List default apps and the associated handlers
     ///
     /// Output is formatted as a table with two columns.
@@ -58,12 +57,13 @@ pub enum Cmd {
     /// }
     ///
     /// Where each top-level key has an array with the same scheme as the normal `--json` output
+    #[clap(verbatim_doc_comment)]
     List {
-        #[clap(long)]
         /// Output handler info as json
+        #[clap(long)]
         json: bool,
-        #[clap(long, short)]
         /// Expand wildcards in mimetypes and show global defaults
+        #[clap(long, short)]
         all: bool,
     },
 
@@ -75,8 +75,8 @@ pub enum Cmd {
     /// you will be prompted to select one using `selector` from ~/.config/handlr/handlr.toml.
     /// Otherwise, the default handler will be opened.
     Open {
-        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         /// Paths/URLs to open
+        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         paths: Vec<UserPath>,
         #[command(flatten)]
         selector_args: SelectorArgs,
@@ -94,11 +94,11 @@ pub enum Cmd {
     ///
     /// Currently does not support regex handlers.
     Set {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to operate on.
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
-        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         handler: DesktopHandler,
     },
 
@@ -111,8 +111,8 @@ pub enum Cmd {
     ///
     /// Currently does not support regex handlers.
     Unset {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to unset the default handler of
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
     },
 
@@ -124,18 +124,17 @@ pub enum Cmd {
     /// you will be prompted to select one using `selector` from ~/.config/handlr/handlr.toml.
     /// Otherwise, the default handler will be opened.
     Launch {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to launch the handler of
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
+        /// Arguments to pass to handler program
         // Not necessarily a path, but completing as a path tends to be the expected "default" behavior
         #[clap(add=ArgValueCompleter::new(PathCompleter::any()))]
-        /// Arguments to pass to handler program
         args: Vec<String>,
         #[command(flatten)]
         selector_args: SelectorArgs,
     },
 
-    #[clap(verbatim_doc_comment)]
     /// Get handler for this mime/extension
     ///
     /// If multiple handlers are set and `enable_selector` is set to true,
@@ -154,12 +153,13 @@ pub enum Cmd {
     ///
     /// Note that when handlr is not being directly output to a terminal, and the handler is a terminal program,
     /// the "cmd" key in the json output will include the command of the `x-scheme-handler/terminal` handler.
+    #[clap(verbatim_doc_comment)]
     Get {
-        #[clap(long)]
         /// Output handler info as json
+        #[clap(long)]
         json: bool,
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to get the handler of
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
         #[command(flatten)]
         selector_args: SelectorArgs,
@@ -175,11 +175,11 @@ pub enum Cmd {
     /// This subcommand adds secondary handlers that coexist with the default
     /// and does not overwrite existing handlers.
     Add {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to add handler to
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
-        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         handler: DesktopHandler,
     },
 
@@ -190,15 +190,14 @@ pub enum Cmd {
     /// Literal wildcards (e.g. `text/*`) will be favored over matching mimetypes if present.
     /// Otherwise, mimes matching wildcards (e.g. `text/plain`, etc.) will have their handlers removed.
     Remove {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to remove handler from
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
-        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program to remove
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         handler: DesktopHandler,
     },
 
-    #[clap(verbatim_doc_comment)]
     /// Get the mimetype of a given file/URL
     ///
     /// By default, output is in the form of a table that matches file paths/URLs to their mimetypes.
@@ -216,27 +215,28 @@ pub enum Cmd {
     ///   },
     /// ...
     /// ]
+    #[clap(verbatim_doc_comment)]
     Mime {
-        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         /// File paths/URLs to get the mimetype of
+        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         paths: Vec<UserPath>,
-        #[clap(long)]
         /// Output mimetype info as json
+        #[clap(long)]
         json: bool,
     },
 }
 
 #[derive(Clone, Args)]
 pub struct SelectorArgs {
-    #[clap(long, short)]
     /// Override the configured selector command
-    pub selector: Option<String>,
     #[clap(long, short)]
+    pub selector: Option<String>,
     /// Enable selector, overrides `enable_selector`
+    #[clap(long, short)]
     pub enable_selector: bool,
+    /// Disable selector, overrides `enable_selector`
     #[clap(long, short)]
     #[clap(overrides_with = "enable_selector")]
-    /// Disable selector, overrides `enable_selector`
     pub disable_selector: bool,
 }
 
