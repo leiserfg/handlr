@@ -79,11 +79,7 @@ impl Config {
 
     /// Given a mime and arguments, launch the associated handler with the arguments
     #[mutants::skip] // Cannot test directly, runs external command
-    pub fn launch_handler(
-        &self,
-        mime: &Mime,
-        args: Vec<UserPath>,
-    ) -> Result<()> {
+    pub fn launch_handler(&self, mime: &Mime, args: Vec<String>) -> Result<()> {
         self.get_handler(mime)?
             .launch(self, args.into_iter().map(|a| a.to_string()).collect())
     }

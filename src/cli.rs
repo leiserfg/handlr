@@ -130,7 +130,7 @@ pub enum Cmd {
         // Not necessarily a path, but completing as a path tends to be the expected "default" behavior
         #[clap(add=ArgValueCompleter::new(PathCompleter::any()))]
         /// Arguments to pass to handler program
-        args: Vec<UserPath>,
+        args: Vec<String>,
         #[command(flatten)]
         selector_args: SelectorArgs,
     },
