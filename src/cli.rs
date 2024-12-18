@@ -242,11 +242,13 @@ pub struct SelectorArgs {
 
 /// Generate candidates for mimes and file extensions to use
 #[mutants::skip] // TODO: figure out how to test with golden tests
-fn autocomplete_mimes(_current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+fn autocomplete_mimes(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     let mut mimes = mime_db::EXTENSIONS
         .iter()
-        .map(|(ext, _)| CompletionCandidate::new(format!(".{ext}")))
-        .chain(mime_types().iter().map(CompletionCandidate::new))
+        .map(|(ext, _)| format!(".{ext}"))
+        .chain(mime_types())
+        .filter(|x| x.starts_with(current.to_string_lossy().as_ref()))
+        .map(CompletionCandidate::new)
         .collect::<Vec<_>>();
     mimes.sort();
     mimes
@@ -255,10 +257,14 @@ fn autocomplete_mimes(_current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
 /// Generate candidates for desktop files
 #[mutants::skip] // Cannot test directly, relies on system state
 fn autocomplete_desktop_files(
-    _current: &std::ffi::OsStr,
+    current: &std::ffi::OsStr,
 ) -> Vec<CompletionCandidate> {
     SystemApps::get_entries()
         .expect("Could not get system desktop entries")
+        .filter(|(path, _)| {
+            path.to_string_lossy()
+                .starts_with(current.to_string_lossy().as_ref())
+        })
         .map(|(path, entry)| {
             let mut name = StyledStr::new();
             write!(name, "{}", entry.name)
