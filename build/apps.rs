@@ -3,6 +3,7 @@
 // because they rely on their own dependencies and so on
 
 use std::error::Error;
+use std::ffi::OsString;
 
 pub struct SystemApps;
 pub struct DesktopEntry {
@@ -11,9 +12,14 @@ pub struct DesktopEntry {
 
 impl SystemApps {
     pub fn get_entries(
-    ) -> Result<impl Iterator<Item = (String, DesktopEntry)>, Box<dyn Error>>
+    ) -> Result<impl Iterator<Item = (OsString, DesktopEntry)>, Box<dyn Error>>
     {
-        let name = "".to_string();
-        Ok(vec![(name.clone(), DesktopEntry { name })].into_iter())
+        Ok(vec![(
+            OsString::new(),
+            DesktopEntry {
+                name: String::new(),
+            },
+        )]
+        .into_iter())
     }
 }

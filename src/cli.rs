@@ -5,7 +5,10 @@ use crate::{
     common::{mime_types, DesktopHandler, MimeOrExtension, UserPath},
 };
 use clap::{builder::StyledStr, Args, Parser};
-use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
+use clap_complete::{
+    engine::{ArgValueCompleter, CompletionCandidate},
+    PathCompleter,
+};
 
 /// A better xdg-utils
 ///
@@ -19,7 +22,6 @@ use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
 #[clap(disable_help_subcommand = true)]
 #[clap(version, about)]
 pub enum Cmd {
-    #[clap(verbatim_doc_comment)]
     /// List default apps and the associated handlers
     ///
     /// Output is formatted as a table with two columns.
@@ -55,12 +57,13 @@ pub enum Cmd {
     /// }
     ///
     /// Where each top-level key has an array with the same scheme as the normal `--json` output
+    #[clap(verbatim_doc_comment)]
     List {
-        #[clap(long)]
         /// Output handler info as json
+        #[clap(long)]
         json: bool,
-        #[clap(long, short)]
         /// Expand wildcards in mimetypes and show global defaults
+        #[clap(long, short)]
         all: bool,
     },
 
@@ -72,8 +75,8 @@ pub enum Cmd {
     /// you will be prompted to select one using `selector` from ~/.config/handlr/handlr.toml.
     /// Otherwise, the default handler will be opened.
     Open {
-        #[clap(required = true)]
         /// Paths/URLs to open
+        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         paths: Vec<UserPath>,
         #[command(flatten)]
         selector_args: SelectorArgs,
@@ -91,11 +94,11 @@ pub enum Cmd {
     ///
     /// Currently does not support regex handlers.
     Set {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to operate on.
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
-        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         handler: DesktopHandler,
     },
 
@@ -108,8 +111,8 @@ pub enum Cmd {
     ///
     /// Currently does not support regex handlers.
     Unset {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to unset the default handler of
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
     },
 
@@ -121,16 +124,17 @@ pub enum Cmd {
     /// you will be prompted to select one using `selector` from ~/.config/handlr/handlr.toml.
     /// Otherwise, the default handler will be opened.
     Launch {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype or file extension to launch the handler of
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
         /// Arguments to pass to handler program
-        args: Vec<UserPath>,
+        // Not necessarily a path, but completing as a path tends to be the expected "default" behavior
+        #[clap(add=ArgValueCompleter::new(PathCompleter::any()))]
+        args: Vec<String>,
         #[command(flatten)]
         selector_args: SelectorArgs,
     },
 
-    #[clap(verbatim_doc_comment)]
     /// Get handler for this mime/extension
     ///
     /// If multiple handlers are set and `enable_selector` is set to true,
@@ -149,12 +153,13 @@ pub enum Cmd {
     ///
     /// Note that when handlr is not being directly output to a terminal, and the handler is a terminal program,
     /// the "cmd" key in the json output will include the command of the `x-scheme-handler/terminal` handler.
+    #[clap(verbatim_doc_comment)]
     Get {
-        #[clap(long)]
         /// Output handler info as json
+        #[clap(long)]
         json: bool,
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to get the handler of
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
         #[command(flatten)]
         selector_args: SelectorArgs,
@@ -170,11 +175,11 @@ pub enum Cmd {
     /// This subcommand adds secondary handlers that coexist with the default
     /// and does not overwrite existing handlers.
     Add {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to add handler to
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
-        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         handler: DesktopHandler,
     },
 
@@ -185,15 +190,14 @@ pub enum Cmd {
     /// Literal wildcards (e.g. `text/*`) will be favored over matching mimetypes if present.
     /// Otherwise, mimes matching wildcards (e.g. `text/plain`, etc.) will have their handlers removed.
     Remove {
-        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         /// Mimetype to remove handler from
+        #[clap(add = ArgValueCompleter::new(autocomplete_mimes))]
         mime: MimeOrExtension,
-        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         /// Desktop file of handler program to remove
+        #[clap(add = ArgValueCompleter::new(autocomplete_desktop_files))]
         handler: DesktopHandler,
     },
 
-    #[clap(verbatim_doc_comment)]
     /// Get the mimetype of a given file/URL
     ///
     /// By default, output is in the form of a table that matches file paths/URLs to their mimetypes.
@@ -211,37 +215,40 @@ pub enum Cmd {
     ///   },
     /// ...
     /// ]
+    #[clap(verbatim_doc_comment)]
     Mime {
-        #[clap(required = true)]
         /// File paths/URLs to get the mimetype of
+        #[clap(required = true, add=ArgValueCompleter::new(PathCompleter::any()))]
         paths: Vec<UserPath>,
-        #[clap(long)]
         /// Output mimetype info as json
+        #[clap(long)]
         json: bool,
     },
 }
 
 #[derive(Clone, Args)]
 pub struct SelectorArgs {
-    #[clap(long, short)]
     /// Override the configured selector command
-    pub selector: Option<String>,
     #[clap(long, short)]
+    pub selector: Option<String>,
     /// Enable selector, overrides `enable_selector`
+    #[clap(long, short)]
     pub enable_selector: bool,
+    /// Disable selector, overrides `enable_selector`
     #[clap(long, short)]
     #[clap(overrides_with = "enable_selector")]
-    /// Disable selector, overrides `enable_selector`
     pub disable_selector: bool,
 }
 
 /// Generate candidates for mimes and file extensions to use
 #[mutants::skip] // TODO: figure out how to test with golden tests
-fn autocomplete_mimes(_current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+fn autocomplete_mimes(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     let mut mimes = mime_db::EXTENSIONS
         .iter()
-        .map(|(ext, _)| CompletionCandidate::new(format!(".{ext}")))
-        .chain(mime_types().iter().map(CompletionCandidate::new))
+        .map(|(ext, _)| format!(".{ext}"))
+        .chain(mime_types())
+        .filter(|x| x.starts_with(current.to_string_lossy().as_ref()))
+        .map(CompletionCandidate::new)
         .collect::<Vec<_>>();
     mimes.sort();
     mimes
@@ -250,10 +257,14 @@ fn autocomplete_mimes(_current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
 /// Generate candidates for desktop files
 #[mutants::skip] // Cannot test directly, relies on system state
 fn autocomplete_desktop_files(
-    _current: &std::ffi::OsStr,
+    current: &std::ffi::OsStr,
 ) -> Vec<CompletionCandidate> {
     SystemApps::get_entries()
         .expect("Could not get system desktop entries")
+        .filter(|(path, _)| {
+            path.to_string_lossy()
+                .starts_with(current.to_string_lossy().as_ref())
+        })
         .map(|(path, entry)| {
             let mut name = StyledStr::new();
             write!(name, "{}", entry.name)
