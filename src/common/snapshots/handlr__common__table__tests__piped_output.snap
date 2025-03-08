@@ -1,3 +1,7 @@
+---
+source: src/common/table.rs
+expression: "render_table(&rows(LOREM_IPSUM), false)"
+---
 col1        	col2         
 Lorem       	ipsum        
 dolor       	sit          
@@ -32,4 +36,4 @@ sunt        	in
 culpa       	qui          
 officia     	deserunt     
 mollit      	anim         
-id          	est          
+id          	est

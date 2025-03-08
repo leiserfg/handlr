@@ -1,3 +1,7 @@
+---
+source: src/apps/user.rs
+expression: "String::from_utf8(buffer)?"
+---
 [Default Applications]
 application/vnd.oasis.opendocument.chart=startcenter.desktop;
 application/vnd.oasis.opendocument.chart-template=startcenter.desktop;

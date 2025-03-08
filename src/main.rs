@@ -15,7 +15,9 @@ use clap_complete::CompleteEnv;
 
 #[mutants::skip] // Cannot test directly at the moment
 fn main() -> Result<()> {
-    CompleteEnv::with_factory(|| Cmd::command().name("handlr")).completer("handlr").complete();
+    CompleteEnv::with_factory(|| Cmd::command().name("handlr"))
+        .completer("handlr")
+        .complete();
 
     let mut config = Config::new()?;
     let mut stdout = std::io::stdout().lock();

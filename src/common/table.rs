@@ -52,13 +52,13 @@ mod tests {
 
     #[test]
     fn terminal_output() -> Result<()> {
-        goldie::assert!(render_table(&rows(LOREM_IPSUM), true));
+        insta::assert_snapshot!(render_table(&rows(LOREM_IPSUM), true));
         Ok(())
     }
 
     #[test]
     fn piped_output() -> Result<()> {
-        goldie::assert!(render_table(&rows(LOREM_IPSUM), false));
+        insta::assert_snapshot!(render_table(&rows(LOREM_IPSUM), false));
         Ok(())
     }
 }

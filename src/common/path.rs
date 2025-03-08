@@ -127,7 +127,7 @@ mod tests {
     fn mime_table_terminal() -> Result<()> {
         let mut buffer = Vec::new();
         mime_table(&mut buffer, &paths()?, false, true)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -135,7 +135,7 @@ mod tests {
     fn test_mime_table_piped() -> Result<()> {
         let mut buffer = Vec::new();
         mime_table(&mut buffer, &paths()?, false, false)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -145,12 +145,12 @@ mod tests {
         // JSON output and terminal output
         let mut buffer = Vec::new();
         mime_table(&mut buffer, &paths()?, true, true)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         // JSON output and no terminal output
         let mut buffer = Vec::new();
         mime_table(&mut buffer, &paths()?, true, false)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         Ok(())
     }

@@ -1,1 +1,5 @@
+---
+source: src/config/main_config.rs
+expression: "String::from_utf8(buffer)?"
+---
 {"cmd":"wezterm start --cwd . -e hx","handler":"tests/Helix.desktop","name":"Helix"}

@@ -374,7 +374,7 @@ impl MimeAppsTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
+    use similar_asserts::assert_eq;
 
     #[test]
     fn wildcard_mimes() -> Result<()> {
@@ -513,7 +513,7 @@ mod tests {
     fn print_handlers_default() -> Result<()> {
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, false, false, true)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -521,7 +521,7 @@ mod tests {
     fn print_handlers_piped() -> Result<()> {
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, false, false, false)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -529,7 +529,7 @@ mod tests {
     fn print_handlers_detailed() -> Result<()> {
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, true, false, true)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -537,7 +537,7 @@ mod tests {
     fn print_handlers_detailed_piped() -> Result<()> {
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, true, false, false)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -547,12 +547,12 @@ mod tests {
         // JSON output and terminal output
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, false, true, true)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         // JSON output and piped
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, false, true, false)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         Ok(())
     }
@@ -563,12 +563,12 @@ mod tests {
         // JSON output and terminal output
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, true, true, false)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         // JSON output and piped
         let mut buffer = Vec::new();
         print_handlers_test(&mut buffer, true, true, false)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         Ok(())
     }
@@ -635,7 +635,7 @@ mod tests {
         let mut buffer = Vec::new();
         test_show_handler(&mut buffer, false, false)?;
         println!("{}", String::from_utf8(buffer.clone())?);
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -644,7 +644,7 @@ mod tests {
         let mut buffer = Vec::new();
         test_show_handler(&mut buffer, true, false)?;
         println!("{}", String::from_utf8(buffer.clone())?);
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 
@@ -654,7 +654,7 @@ mod tests {
         let mut buffer = Vec::new();
         test_show_handler(&mut buffer, false, true)?;
         println!("{}", String::from_utf8(buffer.clone())?);
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
     #[test]
@@ -662,7 +662,7 @@ mod tests {
         let mut buffer = Vec::new();
         test_show_handler(&mut buffer, true, true)?;
         println!("{}", String::from_utf8(buffer.clone())?);
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
         Ok(())
     }
 

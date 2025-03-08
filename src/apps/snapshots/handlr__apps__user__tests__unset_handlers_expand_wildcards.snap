@@ -1,21 +1,8 @@
+---
+source: src/apps/user.rs
+expression: "String::from_utf8(buffer)?"
+---
 [Default Applications]
-application/vnd.oasis.opendocument.chart=startcenter.desktop;
-application/vnd.oasis.opendocument.chart-template=startcenter.desktop;
-application/vnd.oasis.opendocument.database=startcenter.desktop;
-application/vnd.oasis.opendocument.formula=startcenter.desktop;
-application/vnd.oasis.opendocument.formula-template=startcenter.desktop;
-application/vnd.oasis.opendocument.graphics=startcenter.desktop;
-application/vnd.oasis.opendocument.graphics-template=startcenter.desktop;
-application/vnd.oasis.opendocument.image=startcenter.desktop;
-application/vnd.oasis.opendocument.image-template=startcenter.desktop;
-application/vnd.oasis.opendocument.presentation=startcenter.desktop;
-application/vnd.oasis.opendocument.presentation-template=startcenter.desktop;
-application/vnd.oasis.opendocument.spreadsheet=startcenter.desktop;
-application/vnd.oasis.opendocument.spreadsheet-template=startcenter.desktop;
-application/vnd.oasis.opendocument.text=startcenter.desktop;
-application/vnd.oasis.opendocument.text-master=startcenter.desktop;
-application/vnd.oasis.opendocument.text-template=startcenter.desktop;
-application/vnd.oasis.opendocument.text-web=startcenter.desktop;
 text/cache-manifest=Helix.desktop;
 text/calendar=Helix.desktop;
 text/coffeescript=Helix.desktop;
@@ -81,4 +68,3 @@ text/x-vcalendar=Helix.desktop;
 text/x-vcard=Helix.desktop;
 text/xml=Helix.desktop;
 text/yaml=Helix.desktop;
-video/mp4=mpv.desktop;

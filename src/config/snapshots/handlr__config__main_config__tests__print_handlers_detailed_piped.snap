@@ -1,3 +1,8 @@
+---
+source: src/config/main_config.rs
+expression: "String::from_utf8(buffer)?"
+---
+Default Apps
 mime                                           	handlers                                    
 application/vnd.oasis.opendocument.*           	startcenter.desktop                         
 application/vnd.openxmlformats-officedocument.*	startcenter.desktop                         
@@ -5,3 +10,8 @@ text/plain                                     	helix.desktop, nvim.desktop, kak
 video/asdf                                     	mpv.desktop                                 
 video/mp4                                      	mpv.desktop                                 
 video/webm                                     	brave.desktop                               
+Added associations
+mime                     	handlers                      
+x-scheme-handler/terminal	org.wezfurlong.wezterm.desktop
+System Apps
+mime	handlers

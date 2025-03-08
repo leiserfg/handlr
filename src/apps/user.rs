@@ -372,7 +372,7 @@ fn select<O: Iterator<Item = String>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
+    use similar_asserts::assert_eq;
     use std::{fs::File, str::FromStr};
 
     // Helper function to test serializing and deserializing mimeapps.list files
@@ -512,7 +512,7 @@ mod tests {
         let mut buffer = Vec::new();
         mime_apps.save_to(&mut buffer)?;
 
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         Ok(())
     }
@@ -549,7 +549,7 @@ mod tests {
         let mut buffer = Vec::new();
         mime_apps.save_to(&mut buffer)?;
 
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         Ok(())
     }
@@ -583,7 +583,7 @@ mod tests {
         mime_apps.save_to(&mut buffer)?;
 
         // Only text/* should be removed first
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         mime_apps.unset_handler(&Mime::from_str("text/*")?);
 
@@ -644,7 +644,7 @@ mod tests {
 
         let mut buffer = Vec::new();
         mime_apps.save_to(&mut buffer)?;
-        goldie::assert!(String::from_utf8(buffer)?);
+        insta::assert_snapshot!(String::from_utf8(buffer)?);
 
         Ok(())
     }

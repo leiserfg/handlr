@@ -1,3 +1,7 @@
+---
+source: src/common/path.rs
+expression: "String::from_utf8(buffer)?"
+---
 path                                	mime                     
 tests                               	inode/directory          
 tests/cat                           	application/x-shellscript
@@ -10,4 +14,4 @@ tests/rust.vim                      	text/plain
 tests/SettingsWidgetFdoSecrets.ui   	application/x-designer   
 https://duckduckgo.com/             	x-scheme-handler/https   
 .                                   	inode/directory          
-../README.md                        	text/markdown            
+../README.md                        	text/markdown

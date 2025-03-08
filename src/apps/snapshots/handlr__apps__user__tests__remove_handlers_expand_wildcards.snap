@@ -1,3 +1,7 @@
+---
+source: src/apps/user.rs
+expression: "String::from_utf8(buffer)?"
+---
 [Default Applications]
 text/*=nvim.desktop;
 text/cache-manifest=nvim.desktop;
